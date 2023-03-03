@@ -1,0 +1,38 @@
+name: axe Watcher
+description: Get the axe Watcher status for a commit
+
+inputs:
+  api_key:
+    description: axe Watcher API Key
+    required: true
+  server_url:
+    description: axe server URL
+    required: false
+    default: https://axe.deque.com
+  retry_count:
+    description: number of times to attempt fetching the commit status
+    required: false
+    default: 10
+
+outputs:
+  project:
+    description: Project name
+    value: ${{ steps.main.outputs.project }}
+  axe_url:
+    description: Axe URL for the commit's issues
+    value: ${{ steps.main.outputs.axe_url }}
+  issue_count:
+    description: Number of violations found
+    value: ${{ steps.main.outputs.issue_count }}
+
+runs:
+  using: composite
+  steps:
+    - id: main
+      run: ${{ github.action_path }}/main.sh
+      shell: bash
+      env:
+        API_KEY: ${{ inputs.api_key }}
+        SERVER_URL: ${{ inputs.server_url }}
+        RETRY_COUNT: ${{ inputs.retry_count }}
+        COMMIT_SHA: ${{ github.sha }}
