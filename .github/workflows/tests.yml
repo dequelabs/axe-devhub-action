@@ -26,9 +26,12 @@ jobs:
         with:
           run: npm run ci
           working-directory: ./example
-      - name: axe Watcher
-        uses: ./
-        if: always() # We want to get the a11y report, even if the tests fail.
+  watcher:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v3
+      - uses: ./
         with:
           api_key: ${{ secrets.AXE_WATCHER_API_KEY }}
           server_url: https://axe.dequelabs.com
