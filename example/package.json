@@ -1,6 +1,6 @@
 {
   "scripts": {
-    "dev": "webpack serve --history-api-fallback --port=5012",
+    "dev": "webpack serve --history-api-fallback --port=5012 --mode=development",
     "prebuild": "rimraf dist",
     "build": "webpack --mode=production",
     "start-server": "serve dist --single -p 5012",

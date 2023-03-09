@@ -37,6 +37,20 @@ const Violations: React.FC = () => {
             ))}
         </ul>
       </div>
+
+      <div className="Violations-button-name">
+        <h3>Button name violations</h3>
+
+        <ul>
+          {Array(10)
+            .fill(0)
+            .map((_, i) => (
+              <li key={i}>
+                <button />
+              </li>
+            ))}
+        </ul>
+      </div>
     </div>
   );
 };
