@@ -30,6 +30,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: test
     steps:
+      - uses: actions/checkout@v3
       - uses: ./
         with:
           api_key: ${{ secrets.AXE_WATCHER_API_KEY }}
