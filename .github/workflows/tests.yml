@@ -1,0 +1,30 @@
+name: Tests
+
+on: [push]
+
+jobs:
+  shellcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: ludeeus/action-shellcheck@2.0.0
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 18
+      - run: cd example && npm install
+      - uses: browser-actions/setup-chrome@latest
+      - uses: nanasess/setup-chromedriver@v1
+      - timeout-minutes: 10
+        uses: GabrielBB/xvfb-action@v1
+        with:
+          run: npm run ci --retries=3
+          working-directory: ./example
+      - name: axe Watcher
+        uses: ./
+        if: always() # We want to get the a11y report, even if the tests fail.
+        with:
+          api_key: ${{ secrets.AXE_WATCHER_API_KEY }}
+          server_url: https://axe.dequelabs.com

@@ -1,0 +1,11 @@
+@import 'normalize.css';
+
+body {
+  font-style: normal;
+  font-weight: 400;
+  color: #666;
+  margin: 0;
+  padding: 0;
+  background-color: #fdfdfe;
+  font-size: 15px;
+}
