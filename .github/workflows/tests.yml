@@ -22,7 +22,7 @@ jobs:
         timeout-minutes: 10
         uses: GabrielBB/xvfb-action@v1
         with:
-          run: npm run ci --retries=3
+          run: SERVER_URL=https://axe.dequelabs.com API_KEY=${{ secrets.AXE_WATCHER_API_KEY }} npm run ci --retries=3
           working-directory: ./example
       - name: axe Watcher
         uses: ./
