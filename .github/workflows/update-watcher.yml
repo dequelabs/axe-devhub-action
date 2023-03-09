@@ -3,7 +3,7 @@ name: Update @axe-core/watcher
 on:
   workflow_dispatch:
   schedule:
-    # Scheduled to run at 2pm every day
+    # Scheduled to run at 2am every day
     - cron: '0 2 * * *'
 
 jobs:
