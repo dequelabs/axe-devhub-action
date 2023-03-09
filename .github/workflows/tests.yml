@@ -17,7 +17,9 @@ jobs:
       - run: cd example && npm install
       - uses: browser-actions/setup-chrome@latest
       - uses: nanasess/setup-chromedriver@v1
-      - timeout-minutes: 10
+      - run: cd example && npm run build
+      - name: Run tests
+        timeout-minutes: 10
         uses: GabrielBB/xvfb-action@v1
         with:
           run: npm run ci --retries=3
