@@ -26,12 +26,11 @@ jobs:
         with:
           run: npm run ci
           working-directory: ./example
-  axe_watcher:
+  watcher:
     runs-on: ubuntu-latest
     needs: test
     steps:
-      - name: axe Watcher
-        uses: ./
+      - uses: ./
         with:
           api_key: ${{ secrets.AXE_WATCHER_API_KEY }}
           server_url: https://axe.dequelabs.com
