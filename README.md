@@ -2,35 +2,9 @@
 
 > A GitHub Action for reporting the axe Watcher status of a particular commit.
 
-## Example Workflows
+## Example Workflow
 
-```yaml
-name: Tests
-
-on: [push]
-
-jobs:
-  generate_report:
-    runs-on: ubuntu-latest
-    steps:
-      # Checkout your code.
-      - uses: actions/checkout@v3
-      # Setup Node.js.
-      - uses: actions/setup-node@v3
-        with:
-          node-version: 18
-      # Install your dependencies.
-      - run: npm install
-      # Run your E2E tests.
-      - run: npm test
-        env:
-          AXE_WATCHER_API_KEY: ${{ secrets.AXE_WATCHER_API_KEY }}
-      # Report the axe Watcher status.
-      - run: dequelabs/axe-watcher-action@v1
-        with:
-          # Specify your API key (available at https://axe.deque.com/axe-watcher/projects).
-          api_key: ${{ secrets.AXE_WATCHER_API_KEY }}
-```
+A full example of the `axe-watcher-action` can be seen at [`.github/workflows/tests.yml`](./.github/workflows/tests.yml).
 
 ## Inputs
 
