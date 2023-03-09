@@ -28,6 +28,7 @@ jobs:
           working-directory: ./example
   axe_watcher:
     runs-on: ubuntu-latest
+    needs: test
     steps:
       - name: axe Watcher
         uses: ./
