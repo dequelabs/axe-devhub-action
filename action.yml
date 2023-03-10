@@ -42,12 +42,23 @@ runs:
         SERVER_URL: ${{ inputs.server_url }}
         RETRY_COUNT: ${{ inputs.retry_count }}
         COMMIT_SHA: ${{ github.sha }}
+    # Add a comment reporting the number of violations.
     - if: ${{ failure() }}
       uses: marocchino/sticky-pull-request-comment@v2
       with:
+        header: axe-watcher
         message: |
           axe Watcher found **${{ steps.main.outputs.issue_count }}** accessibility violations in this PR.
 
           See the full report on [axe DevHub](${{ steps.main.outputs.axe_url }}).
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+        number: ${{ steps.find_pr.outputs.pr }}
+    # Hide a previously added comment if there are no violations.
+    - if: ${{ success() }}
+      uses: marocchino/sticky-pull-request-comment@v2
+      with:
+        header: axe-watcher
+        hide: true
+        hide_classify: 'OUTDATED'
         GITHUB_TOKEN: ${{ inputs.github_token }}
         number: ${{ steps.find_pr.outputs.pr }}
