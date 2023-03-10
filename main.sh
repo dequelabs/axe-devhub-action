@@ -10,6 +10,9 @@ throw() {
 [ -z "$API_KEY" ] && throw "API_KEY required"
 [ -z "$SERVER_URL" ] && throw "SERVER_URL required"
 [ -z "$COMMIT_SHA" ] && throw "COMMIT_SHA required"
+[ -z "$GITHUB_TOKEN" ] && throw "GITHUB_TOKEN required"
+[ -z "$PR_COMMENTS_URL" ] && throw "PR_COMMENTS_URL required"
+
 RETRY_COUNT=${RETRY_COUNT:-10}
 
 echo "Attempting to get status for commit $COMMIT_SHA from $SERVER_URL with $RETRY_COUNT retries"
@@ -41,5 +44,15 @@ fi
 
 if [ "$IssueCount" -gt 0 ]; then
   echo "Found $IssueCount accessibility violations"
+
+  CommentBody="Axe Watcher found **$IssueCount** accessibility violations in this PR."
+  CommentBody="$CommentBody\n\nSee the full report on [axe DevHub]($SERVER_URL$AxeURL)."
+  curl \
+    -X POST \
+    -H "Accept: application/vnd.github.v3+json" \
+    -H "Authorization: token $GITHUB_TOKEN" \
+    "$PR_COMMENTS_URL" \
+    -d "{\"body\":\"$CommentBody\"}"
+
   exit 1
 fi
