@@ -13,7 +13,7 @@ describe("App", () => {
     });
   });
 
-  describe.skip("violations page", () => {
+  describe("violations page", () => {
     it("has a title", () => {
       cy.visit("http://localhost:5012/violations")
         .title()
