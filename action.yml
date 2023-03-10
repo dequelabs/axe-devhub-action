@@ -39,6 +39,12 @@ runs:
         API_KEY: ${{ inputs.api_key }}
         SERVER_URL: ${{ inputs.server_url }}
         RETRY_COUNT: ${{ inputs.retry_count }}
-        GITHUB_TOKEN: ${{ inputs.github_token }}
         COMMIT_SHA: ${{ github.sha }}
-        PR_COMMENTS_URL: https://api.github.com/repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments
+    - if: ${{ steps.main.outputs.issue_count != 0 }}
+      uses: marocchino/sticky-pull-request-comment@v2
+      with:
+        message: |
+          axe Watcher found **${{ steps.main.outputs.issue_count }}** accessibility violations in this PR.
+
+          See the full report on [axe DevHub](${{ steps.main.outputs.axe_url }}).
+        GITHUB_TOKEN: ${{ inputs.github_token }}
