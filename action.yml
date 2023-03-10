@@ -40,7 +40,7 @@ runs:
         SERVER_URL: ${{ inputs.server_url }}
         RETRY_COUNT: ${{ inputs.retry_count }}
         COMMIT_SHA: ${{ github.sha }}
-    - if: ${{ steps.main.outputs.issue_count != 0 }}
+    - if: ${{ failure() }}
       uses: marocchino/sticky-pull-request-comment@v2
       with:
         message: |
