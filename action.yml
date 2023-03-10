@@ -32,6 +32,8 @@ outputs:
 runs:
   using: composite
   steps:
+    - uses: jwalton/gh-find-current-pr@v1
+      id: find_pr
     - id: main
       run: ${{ github.action_path }}/main.sh
       shell: bash
@@ -48,3 +50,4 @@ runs:
 
           See the full report on [axe DevHub](${{ steps.main.outputs.axe_url }}).
         GITHUB_TOKEN: ${{ inputs.github_token }}
+        number: ${{ steps.find_pr.outputs.pr }}
