@@ -15,6 +15,8 @@ throw() {
 
 RETRY_COUNT=${RETRY_COUNT:-10}
 
+echo "PR Comments URL: $PR_COMMENTS_URL"
+
 echo "Attempting to get status for commit $COMMIT_SHA from $SERVER_URL with $RETRY_COUNT retries"
 Response=$(
   curl \
