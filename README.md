@@ -8,11 +8,12 @@ A full example of the `axe-watcher-action` can be seen at [`.github/workflows/te
 
 ## Inputs
 
-| name          | description              | required           | default               |
-| ------------- | ------------------------ | ------------------ | --------------------- |
-| `api_key`     | Your axe Watcher API key | :white_check_mark: |                       |
-| `server_url`  | Axe server URL           | :x:                | https://axe.deque.com |
-| `retry_count` | Number of times to retry | :x:                | 10                    |
+| name           | description                                                                                                 | required           | default                |
+| -------------- | ----------------------------------------------------------------------------------------------------------- | ------------------ | ---------------------- |
+| `api_key`      | Your axe Watcher API key                                                                                    | :white_check_mark: |                        |
+| `server_url`   | Axe server URL                                                                                              | :x:                | https://axe.deque.com  |
+| `retry_count`  | Number of times to retry                                                                                    | :x:                | 10                     |
+| `github-token` | Optional [PAT](https://docs.github.com/en/github/authenticating-to-github/creating-a-personal-access-token) | :x:                | `secrets.GITHUB_TOKEN` |
 
 ## Outputs
 
