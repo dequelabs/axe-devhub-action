@@ -10,12 +10,8 @@ throw() {
 [ -z "$API_KEY" ] && throw "API_KEY required"
 [ -z "$SERVER_URL" ] && throw "SERVER_URL required"
 [ -z "$COMMIT_SHA" ] && throw "COMMIT_SHA required"
-[ -z "$GITHUB_TOKEN" ] && throw "GITHUB_TOKEN required"
-[ -z "$PR_COMMENTS_URL" ] && throw "PR_COMMENTS_URL required"
 
 RETRY_COUNT=${RETRY_COUNT:-10}
-
-echo "PR Comments URL: $PR_COMMENTS_URL"
 
 echo "Attempting to get status for commit $COMMIT_SHA from $SERVER_URL with $RETRY_COUNT retries"
 Response=$(
