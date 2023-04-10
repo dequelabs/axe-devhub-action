@@ -21,7 +21,7 @@ jobs:
       - name: Run tests
         uses: GabrielBB/xvfb-action@v1
         env:
-          API_KEY: ${{ secrets.AXE_WATCHER_API_KEY }}
+          API_KEY: ${{ secrets.AXE_WATCHER_API_KEY_JENNDEV }}
           SERVER_URL: https://axe.dequelabs.com
         with:
           run: npm run ci
@@ -33,5 +33,5 @@ jobs:
       - uses: actions/checkout@v3
       - uses: ./
         with:
-          api_key: ${{ secrets.AXE_WATCHER_API_KEY }}
+          api_key: ${{ secrets.AXE_WATCHER_API_KEY_JENNDEV }}
           server_url: https://axe.dequelabs.com
