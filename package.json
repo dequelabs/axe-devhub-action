@@ -1,0 +1,5 @@
+{
+  "devDependencies": {
+    "@axe-core/watcher": "^1.6.0-next.7b544786"
+  }
+}
