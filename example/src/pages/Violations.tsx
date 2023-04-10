@@ -15,7 +15,7 @@ const Violations: React.FC = () => {
       <div className="Violations-color-contrast">
         <h3>Color contrast violations</h3>
         <ul>
-          {Array(10)
+          {Array(8)
             .fill(0)
             .map((_, i) => (
               <li key={i}>
