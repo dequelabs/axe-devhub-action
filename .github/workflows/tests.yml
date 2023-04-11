@@ -22,7 +22,7 @@ jobs:
         uses: GabrielBB/xvfb-action@v1
         env:
           API_KEY: ${{ secrets.AXE_WATCHER_API_KEY_PROD_DEMO }}
-          SERVER_URL: https://axe.dequelabs.com
+          SERVER_URL: https://axe.deque.com
         with:
           run: npm run ci
           working-directory: ./example
@@ -34,4 +34,4 @@ jobs:
       - uses: ./
         with:
           api_key: ${{ secrets.AXE_WATCHER_API_KEY_PROD_DEMO }}
-          server_url: https://axe.dequelabs.com
+          server_url: https://axe.deque.com
