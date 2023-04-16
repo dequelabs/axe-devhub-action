@@ -22,7 +22,7 @@ Response=$(
     --retry "$RETRY_COUNT" \
     --retry-all-errors \
     --header "X-API-Key: $API_KEY" \
-    --header "Accepts: application/json" \
+    --header "Accept: application/json" \
     --url "$SERVER_URL/api-pub/v1/axe-watcher/gh/$COMMIT_SHA"
 )
 
