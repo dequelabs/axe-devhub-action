@@ -1,9 +1,9 @@
-name: axe Watcher
-description: Get the axe Watcher status for a commit
+name: axe DevHub
+description: Get the axe DevHub status for a commit
 
 inputs:
   api_key:
-    description: axe Watcher API Key
+    description: axe DevHub API Key
     required: true
   server_url:
     description: axe server URL
@@ -46,9 +46,9 @@ runs:
     - if: ${{ failure() }}
       uses: marocchino/sticky-pull-request-comment@v2
       with:
-        header: axe-watcher
+        header: axe-devhub
         message: |
-          axe Watcher found **${{ steps.main.outputs.issue_count }}** accessibility violations in this PR.
+          axe DevHub found **${{ steps.main.outputs.issue_count }}** accessibility violations in this PR.
 
           See the full report on [axe DevHub](${{ steps.main.outputs.axe_url }}).
         GITHUB_TOKEN: ${{ inputs.github_token }}
@@ -57,7 +57,7 @@ runs:
     - if: ${{ success() }}
       uses: marocchino/sticky-pull-request-comment@v2
       with:
-        header: axe-watcher
+        header: axe-devhub
         hide: true
         hide_classify: OUTDATED
         GITHUB_TOKEN: ${{ inputs.github_token }}
