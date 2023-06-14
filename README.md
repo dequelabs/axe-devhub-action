@@ -1,10 +1,10 @@
-# axe-watcher-action
+# axe-devhub-action
 
-> A GitHub Action for reporting the axe Watcher status of a particular commit.
+> A GitHub Action for reporting the axe DevHub status of a particular commit.
 
 ## Example Workflow
 
-A full example of the `axe-watcher-action` can be seen at [`.github/workflows/tests.yml`](./.github/workflows/tests.yml).
+A full example of the `axe-devhub-action` can be seen at [`.github/workflows/tests.yml`](./.github/workflows/tests.yml).
 
 ## Inputs
 
