@@ -19,7 +19,7 @@ jobs:
       - uses: nanasess/setup-chromedriver@v1
       - run: cd example && npm run build
       - name: Run tests
-        run: xvfb-run --auto-servernum --server-args='-screen 0 1024x768x24' npm run ci
+        run: xvfb-run --auto-servernum npm run ci
         working-directory: ./example
         env:
           API_KEY: ${{ secrets.AXE_WATCHER_API_KEY }}
