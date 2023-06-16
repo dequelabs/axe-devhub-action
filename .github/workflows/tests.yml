@@ -21,6 +21,9 @@ jobs:
       - name: Run tests
         run: xvfb-run --auto-servernum --server-args='-screen 0 1024x768x24' npm run ci
         working-directory: ./example
+        env:
+          API_KEY: ${{ secrets.AXE_WATCHER_API_KEY }}
+          SERVER_URL: https://axe.dequelabs.com
       - uses: bcomnes/cleanup-xvfb@v1
   watcher:
     runs-on: ubuntu-latest
