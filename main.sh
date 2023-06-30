@@ -10,6 +10,7 @@ throw() {
 [ -z "$API_KEY" ] && throw "API_KEY required"
 [ -z "$SERVER_URL" ] && throw "SERVER_URL required"
 [ -z "$COMMIT_SHA" ] && throw "COMMIT_SHA required"
+[ -z "$ISSUES_OVER_A11Y_THRESHOLD" ]
 
 RETRY_COUNT=${RETRY_COUNT:-10}
 
@@ -26,7 +27,12 @@ Response=$(
     --url "$SERVER_URL/api-pub/v1/axe-watcher/gh/$COMMIT_SHA"
 )
 
-IssueCount=$(echo "$Response" | jq .last_run_violation_count)
+if [ -n "${ISSUES_OVER_A11Y_THRESHOLD+x}" ] && [ "$ISSUES_OVER_A11Y_THRESHOLD" = true ]; then
+  IssueCount=$(echo "$Response" | jq .issues_over_a11y_threshold)
+else
+  IssueCount=$(echo "$Response" | jq .last_run_violation_count)
+fi
+
 AxeURL=$(echo "$Response" | jq -r .axe_url)
 ProjectName=$(echo "$Response" | jq -r .project_name)
 

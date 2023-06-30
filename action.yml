@@ -13,6 +13,10 @@ inputs:
     description: number of times to attempt fetching the commit status
     required: false
     default: 10
+  issues_over_a11y_threshold:
+    description: Number of issues over your A11y Threshold settings within DeveloperHub
+    required: false
+    default: "false"
   github_token:
     description: GitHub token
     default: ${{ github.token }}
@@ -42,6 +46,7 @@ runs:
         SERVER_URL: ${{ inputs.server_url }}
         RETRY_COUNT: ${{ inputs.retry_count }}
         COMMIT_SHA: ${{ github.sha }}
+        ISSUES_OVER_A11Y_THRESHOLD: ${{ inputs.issues_over_a11y_threshold }}
     # Add a comment reporting the number of violations.
     - if: ${{ failure() }}
       uses: marocchino/sticky-pull-request-comment@v2
