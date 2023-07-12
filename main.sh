@@ -27,7 +27,7 @@ Response=$(
     --url "$SERVER_URL/api-pub/v1/axe-watcher/gh/$COMMIT_SHA"
 )
 
-if [ -n "${ENABLE_A11Y_THRESHOLD+x}" ] && [ "$ENABLE_A11Y_THRESHOLD" = true ]; then
+if [ "$ENABLE_A11Y_THRESHOLD" = "true" ]; then
   IssueCount=$(echo "$Response" | jq .issues_over_a11y_threshold)
 else
   IssueCount=$(echo "$Response" | jq .last_run_violation_count)
