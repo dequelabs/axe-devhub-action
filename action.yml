@@ -15,8 +15,9 @@ inputs:
     default: 10
   enable_a11y_threshold:
     description: Enable the a11y threshold, which will cause the action to fail if the number of violations is greater than the threshold
+    type: boolean
+    default: false
     required: false
-    default: "false"
   github_token:
     description: GitHub token
     default: ${{ github.token }}
