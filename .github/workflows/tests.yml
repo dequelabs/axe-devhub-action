@@ -15,8 +15,6 @@ jobs:
         with:
           node-version: 18
       - run: cd example && npm install
-      - uses: browser-actions/setup-chrome@latest
-      - uses: nanasess/setup-chromedriver@v2
       - run: cd example && npm run build
       - name: Run tests
         run: xvfb-run --auto-servernum npm run ci
