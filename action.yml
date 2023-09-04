@@ -32,6 +32,9 @@ outputs:
   issue_count:
     description: Number of violations found
     value: ${{ steps.main.outputs.issue_count }}
+  issues_over_a11y_threshold:
+    description: Whether the number of violations is over your a11y threshold
+    value: ${{ steps.main.outputs.issues_over_a11y_threshold }}
 
 runs:
   using: composite
@@ -48,7 +51,18 @@ runs:
         COMMIT_SHA: ${{ github.sha }}
         ENABLE_A11Y_THRESHOLD: ${{ inputs.enable_a11y_threshold }}
     # Add a comment reporting the number of violations.
-    - if: ${{ failure() }}
+    # If faiture() and input enable_a11y_threshold is true, then fail the action.
+    - if: ${{ failure() && steps.main.outputs.enable_a11y_threshold == 'true' }}
+      uses: marocchino/sticky-pull-request-comment@v2
+      with:
+        header: axe-devhub
+        message: |
+          axe DevHub found **${{ steps.main.outputs.issues_over_a11y_threshold }}** accessibility violations over your a11y threshold in this PR.
+
+          See the full report on [axe DevHub](${{ steps.main.outputs.axe_url }}).
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+        number: ${{ steps.find_pr.outputs.pr }}
+    - if: ${{ failure() && steps.main.outputs.enable_a11y_threshold == 'false' }}
       uses: marocchino/sticky-pull-request-comment@v2
       with:
         header: axe-devhub
