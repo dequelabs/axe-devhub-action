@@ -51,7 +51,6 @@ runs:
         COMMIT_SHA: ${{ github.sha }}
         ENABLE_A11Y_THRESHOLD: ${{ inputs.enable_a11y_threshold }}
     # Add a comment reporting the number of violations.
-    # If faiture() and input enable_a11y_threshold is true, then fail the action.
     - if: ${{ failure() && steps.main.outputs.enable_a11y_threshold == 'true' }}
       uses: marocchino/sticky-pull-request-comment@v2
       with:
@@ -62,6 +61,7 @@ runs:
           See the full report on [axe DevHub](${{ steps.main.outputs.axe_url }}).
         GITHUB_TOKEN: ${{ inputs.github_token }}
         number: ${{ steps.find_pr.outputs.pr }}
+    # Add a comment reporting the number of violations.
     - if: ${{ failure() && steps.main.outputs.enable_a11y_threshold == 'false' }}
       uses: marocchino/sticky-pull-request-comment@v2
       with:
