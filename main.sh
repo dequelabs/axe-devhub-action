@@ -29,10 +29,9 @@ Response=$(
 
 if [ "$ENABLE_A11Y_THRESHOLD" = "true" ]; then
   IssuesOverA11yThreshold=$(echo "$Response" | jq .issues_over_a11y_threshold)
-else
-  IssueCount=$(echo "$Response" | jq .last_run_violation_count)
 fi
 
+IssueCount=$(echo "$Response" | jq .last_run_violation_count)
 AxeURL=$(echo "$Response" | jq -r .axe_url)
 ProjectName=$(echo "$Response" | jq -r .project_name)
 
@@ -47,13 +46,17 @@ if [ -n "${GITHUB_OUTPUT+x}" ]; then
   echo "issues_over_a11y_threshold=$IssuesOverA11yThreshold" >>"$GITHUB_OUTPUT"
 fi
 
-if [ "$IssuesOverA11yThreshold" -gt 0 ]; then
-  if [ "$IssueCount" -gt 0 ]; then
-  echo "Found $IssueCount accessibility violations"
-  fi  
+if [ "$ENABLE_A11Y_THRESHOLD" = "true" ]; then
+  if [ "$IssuesOverA11yThreshold" -gt 0 ]; then
+    if [ "$IssueCount" -gt 0 ]; then
+    echo "Found $IssueCount accessibility violations"
+    fi  
 
-  echo "Found $IssuesOverA11yThreshold accessibility violations over your a11y threshold"
-  exit 1
+    echo "Found $IssuesOverA11yThreshold accessibility violations over your a11y threshold"
+    exit 1
+  else
+    exit 0
+  fi
 fi
 
 if [ "$IssueCount" -gt 0 ]; then
