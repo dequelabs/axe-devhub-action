@@ -32,9 +32,6 @@ IssuesOverA11yThreshold=$(echo "$Response" | jq .issues_over_a11y_threshold)
 AxeURL=$(echo "$Response" | jq -r .axe_url)
 ProjectName=$(echo "$Response" | jq -r .project_name)
 
-echo "Project: $ProjectName"
-echo "Axe URL: $SERVER_URL$AxeURL"
-
 # Only set outs when running in GitHub Actions.
 if [ -n "${GITHUB_OUTPUT+x}" ]; then
   echo "project=$ProjectName" >>"$GITHUB_OUTPUT"
@@ -43,6 +40,7 @@ if [ -n "${GITHUB_OUTPUT+x}" ]; then
   echo "issues_over_a11y_threshold=$IssuesOverA11yThreshold" >>"$GITHUB_OUTPUT"
 fi
 
+echo "Project: $ProjectName"
 echo "axe DevHub found $IssueCount accessibility violations."
 
 if [ "$ENABLE_A11Y_THRESHOLD" = "true" ]; then 
