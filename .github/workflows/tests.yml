@@ -33,6 +33,7 @@ jobs:
           { a11y_threshold: 'SERIOUS', maximum_issue_impact: 'MINOR', expected_outcome: 'success' },
           { a11y_threshold: 'SERIOUS', maximum_issue_impact: 'SERIOUS', expected_outcome: 'failure' },
         ]
+    name: "test-action (a11y_threshold: ${{ matrix.test-case.a11y_threshold }}, issue_impact: ${{ matrix.test-case.maximum_issue_impact }})"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
@@ -56,13 +57,16 @@ jobs:
         uses: ./
         continue-on-error: true
         with:
-          API_KEY: ${{ secrets[format('AXE_WATCHER_API_KEY_A11Y_THRESHOLD_{0}_ISSUE_IMPACT_{1}', matrix.test-case.a11y_threshold, matrix.test-case.maximum_issue_impact)] }}
+          API_KEY: "${{ secrets[format('AXE_WATCHER_API_KEY_A11Y_THRESHOLD_{0}_ISSUE_IMPACT_{1}', matrix.test-case.a11y_threshold, matrix.test-case.maximum_issue_impact)] }}"
           server_url: https://axe.dequelabs.com
 
       # Verify it did what we expected
       - run: |
-          if [[ "${{ matrix.test-case.expected_outcome }}" != "${{ format('steps.run-action-{0}-{1}.outcome', matrix.test-case.a11y_threshold, matrix.test-case.maximum_issue_impact) }}" ]]; then
-            echo "Expected outcome '${{ matrix.test-case.expected_outcome }}' but got '${{ steps.run-action.outcome }}'"
+          EXPECTED_OUTCOME="${{ matrix.test-case.expected_outcome }}"
+          ACTUAL_OUTCOME="${{ format('steps.run-action-{0}-{1}.outcome', matrix.test-case.a11y_threshold, matrix.test-case.maximum_issue_impact) }}"
+
+          if [[ "$EXPECTED_OUTCOME" != "$ACTUAL_OUTCOME" ]]; then
+            echo "Expected outcome '$EXPECTED_OUTCOME' but got '$ACTUAL_OUTCOME'"
             exit 1
           fi
 
