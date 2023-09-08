@@ -50,7 +50,7 @@ fi
 echo "See the full report on axe DevHub: $SERVER_URL$AxeURL"
 
 
-if [ "$ENABLE_A11Y_THRESHOLD" = "true" ] then
+if [ "$ENABLE_A11Y_THRESHOLD" = "true" ]; then
   if [ "$IssuesOverA11yThreshold" -gt 0 ]; then
     exit 1
   else
