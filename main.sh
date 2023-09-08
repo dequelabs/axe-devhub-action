@@ -56,6 +56,7 @@ if [ "$ENABLE_A11Y_THRESHOLD" = "true" ] then
   else
     # If there are no issues over the threshold, we can exit successfully.
     exit 0
+  fi
 fi
 
 if [ "$IssueCount" -gt 0 ]; then
