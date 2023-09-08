@@ -3,8 +3,9 @@ import { createRoot } from "react-dom/client";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import App from "./components/App";
 import Home from "./pages/Home";
+import MinorViolations from "./pages/MinorViolations";
 import NotFound from "./pages/NotFound";
-import Violations from "./pages/Violations";
+import SeriousViolations from "./pages/SeriousViolations";
 
 import "./app.css";
 
@@ -16,7 +17,8 @@ root.render(
     <App>
       <Routes>
         <Route path="/" element={<Home />} />
-        <Route path="/violations" element={<Violations />} />
+        <Route path="/minor-violations" element={<MinorViolations />} />
+        <Route path="/serious-violations" element={<SeriousViolations />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </App>

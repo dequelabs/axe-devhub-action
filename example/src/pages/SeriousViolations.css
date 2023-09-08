@@ -1,0 +1,20 @@
+.Violations {
+}
+
+.Violations ul {
+  padding-left: 0;
+  list-style: none;
+}
+
+.Violations li {
+  padding: 1em;
+}
+
+.Violations-color-contrast li {
+  color: violet;
+}
+
+.Violations-image-alt img {
+  width: 200px;
+  height: 300px;
+}

@@ -1,15 +1,15 @@
 import React from "react";
 import PageTitle from "../components/PageTitle";
-import "./Violations.css";
+import "./SeriousViolations.css";
 
 const Violations: React.FC = () => {
   return (
     <div className="Violations">
-      <PageTitle title="Violations" />
+      <PageTitle title="Serious Violations" />
       <h2>Violations</h2>
 
       <p>
-        This page has many <code>axe-core</code> violations.
+        This page has many serious-impact <code>axe-core</code> violations.
       </p>
 
       <div className="Violations-color-contrast">
