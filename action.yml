@@ -56,6 +56,7 @@ runs:
       with:
         header: axe-devhub
         message: |
+          axe DevHub found **${{ steps.main.outputs.issue_count }}** accessibility violations in this PR.
           axe DevHub found **${{ steps.main.outputs.issues_over_a11y_threshold }}** accessibility violations over your a11y threshold in this PR.
 
           See the full report on [axe DevHub](${{ steps.main.outputs.axe_url }}).
