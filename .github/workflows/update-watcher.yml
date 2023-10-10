@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   schedule:
     # Scheduled to run at 2am every day
-    - cron: '0 2 * * *'
+    - cron: "0 2 * * *"
 
 jobs:
   build:
@@ -16,13 +16,13 @@ jobs:
           node-version: 18
       - run: cd example && npm install --save-dev @axe-core/watcher@next
       - name: Open PR
-        uses: peter-evans/create-pull-request@v3
+        uses: peter-evans/create-pull-request@153407881ec5c347639a548ade7d8ad1d6740e38 # tag=v5
         with:
           token: ${{ secrets.PAT }}
-          commit-message: 'chore: Update @axe-core/watcher'
+          commit-message: "chore: Update @axe-core/watcher"
           branch: auto-update-watcher
           base: main
-          title: 'chore: Update @axe-core/watcher'
+          title: "chore: Update @axe-core/watcher"
           body: |
             This patch updates version of [`@axe-core/watcher`](https://npmjs.org/@axe-core/watcher) to the latest `@next` version.
             This PR was opened by a robot :robot: :tada:.
