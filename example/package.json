@@ -15,7 +15,7 @@
     "react-router-dom": "^6.8.2"
   },
   "devDependencies": {
-    "@axe-core/watcher": "^3.1.0-next.9b3d9c1f",
+    "@axe-core/watcher": "^3.1.0-next.35dc4913",
     "@types/html-webpack-plugin": "^3.2.6",
     "@types/mocha": "^10.0.1",
     "@types/node": "^18.14.6",
