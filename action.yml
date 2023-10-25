@@ -39,7 +39,7 @@ outputs:
 runs:
   using: composite
   steps:
-    - uses: jwalton/gh-find-current-pr@v1
+    - uses: jwalton/gh-find-current-pr@7ada613939e2a233c83a1320679446fa1c6bdcb9 # tag=v1
       id: find_pr
     - id: main
       run: ${{ github.action_path }}/main.sh
@@ -52,7 +52,7 @@ runs:
         ENABLE_A11Y_THRESHOLD: ${{ inputs.enable_a11y_threshold }}
     # Add a comment reporting the number of violations.
     - if: ${{ failure() && inputs.enable_a11y_threshold == 'true' }}
-      uses: marocchino/sticky-pull-request-comment@v2
+      uses: marocchino/sticky-pull-request-comment@efaaab3fd41a9c3de579aba759d2552635e590fd # tag=v2
       with:
         header: axe-devhub
         message: |
@@ -64,7 +64,7 @@ runs:
         number: ${{ steps.find_pr.outputs.pr }}
     # Add a comment reporting the number of violations.
     - if: ${{ failure() && inputs.enable_a11y_threshold == 'false' }}
-      uses: marocchino/sticky-pull-request-comment@v2
+      uses: marocchino/sticky-pull-request-comment@efaaab3fd41a9c3de579aba759d2552635e590fd # tag=v2
       with:
         header: axe-devhub
         message: |
@@ -75,7 +75,7 @@ runs:
         number: ${{ steps.find_pr.outputs.pr }}
     # Hide a previously added comment if there are no violations.
     - if: ${{ success() }}
-      uses: marocchino/sticky-pull-request-comment@v2
+      uses: marocchino/sticky-pull-request-comment@efaaab3fd41a9c3de579aba759d2552635e590fd # tag=v2
       with:
         header: axe-devhub
         hide: true
