@@ -17,7 +17,7 @@ jobs:
           node-version: 18
       - run: cd example && npm install --save-dev @axe-core/watcher@latest
       - name: Open PR
-        uses: peter-evans/create-pull-request@153407881ec5c347639a548ade7d8ad1d6740e38 # tag=v5
+        uses: peter-evans/create-pull-request@70a41aba780001da0a30141984ae2a0c95d8704e # tag=v5
         with:
           token: ${{ secrets.PAT }}
           commit-message: "chore: Update @axe-core/watcher"
