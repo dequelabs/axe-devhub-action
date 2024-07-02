@@ -27,7 +27,8 @@ Response=$(
     --url "$SERVER_URL/api-pub/v1/axe-watcher/gh/$COMMIT_SHA"
 )
 
-LastRunViolationCount=$(echo "$Response" | jq .last_run_violation_count)
+LastRunCreatedAt=$(echo "$Response" | jq -r .last_run_created_at)
+LastRunViolationCount=$(echo "$Response" | jq -r .last_run_violation_count)
 LastRunPageStateCount=$(echo "$Response" | jq -r .last_run_page_state_count)
 LastRunNewViolationCount=$(echo "$Response" | jq -r .last_run_new_violation_count)
 LastRunResolvedViolationCount=$(echo "$Response" | jq -r .last_run_resolved_violation_count)
@@ -40,6 +41,7 @@ DifferenceInPageStateCount=$(echo "$Response" | jq -r .difference_in_page_states
 if [ -n "${GITHUB_OUTPUT+x}" ]; then
   echo "project=$ProjectName" >>"$GITHUB_OUTPUT"
   echo "axe_url=$SERVER_URL$AxeURL" >>"$GITHUB_OUTPUT"
+  echo "created_at=$LastRunCreatedAt" >>"$GITHUB_OUTPUT"
   echo "issue_count=$LastRunViolationCount" >>"$GITHUB_OUTPUT"
   echo "new_issues=$LastRunNewViolationCount" >> "$GITHUB_OUTPUT"
   echo "resolved_issues=$LastRunResolvedViolationCount" >> "$GITHUB_OUTPUT"
