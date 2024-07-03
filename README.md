@@ -18,8 +18,13 @@ A full example of the `axe-devhub-action` can be seen at [`.github/workflows/tes
 
 ## Outputs
 
-| name          | description                                        |
-| ------------- | -------------------------------------------------- |
-| `project`     | Project associated with your API key               |
-| `axe_url`     | URL for viewing axe issues detected on your commit |
-| `issue_count` | Number of axe issues detected                      |
+| name                         | description                                        |
+| ---------------------------- | -------------------------------------------------- |
+| `project`                    | Project associated with your API key               |
+| `axe_url`                    | URL for viewing axe issues detected on your commit |
+| `issue_count`                | Number of axe issues detected                      |
+| `created_at`                 | DateTime when run occurred                         |
+| `resolved_issues`            | Number of axe issues resolved                      |
+| `difference_in_page_states`  | Difference in number of page states detected       |
+| `page_states`                | Number of page states detected                     |
+| `issues_over_a11y_threshold` | Number of issues over a11y threshold               |

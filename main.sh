@@ -64,8 +64,11 @@ echo "$existing_issues_count previous issues remain"
 
 if [ "$DifferenceInPageStateCount" -gt 0 ]; then
   echo "$DifferenceInPageStateCount more page states"
+elif [ "$DifferenceInPageStateCount" -lt 0 ]; then
+  AbsoluteDifference=$(( -DifferenceInPageStateCount ))
+  echo "$AbsoluteDifference fewer page states"
 else
-  echo "$DifferenceInPageStateCount fewer page states"
+  echo "No change in page state count"
 fi
 
 if [ "$ENABLE_A11Y_THRESHOLD" = "true" ]; then 
