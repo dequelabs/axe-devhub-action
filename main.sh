@@ -9,6 +9,8 @@ throw() {
 
 [ -z "$API_KEY" ] && throw "API_KEY required"
 [ -z "$SERVER_URL" ] && throw "SERVER_URL required"
+# Remove trailing slash from SERVER_URL
+SERVER_URL="${SERVER_URL%/}"
 [ -z "$COMMIT_SHA" ] && throw "COMMIT_SHA required"
 [ -z "$ENABLE_A11Y_THRESHOLD" ] && throw "ENABLE_A11Y_THRESHOLD required"
 
