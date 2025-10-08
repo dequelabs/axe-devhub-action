@@ -3,18 +3,13 @@ name: Comment on related Zendesk tickets upon release
 #the reusable_reach_out_to_zendesk_on_release_merge workflow in internal-actions-private.
 
 on:
-  pull_request:
-    types:
-      - closed
-    branches:
+  push:
       - main
-      - master
 jobs:
-  if_merged:
-    if: |
-      github.event.pull_request.merged == true &&
-      github.head_ref == 'release' &&
-      contains(github.event.pull_request.title, 'chore') &&
-      contains(github.event.pull_request.title, 'release')
-    uses: dequelabs/internal-actions-private/.github/workflows/reusable_reach_out_to_zendesk_on_release_merge.yml@main
-    secrets: inherit
+  if: |
+    github.event.pull_request.merged == true &&
+    github.head_ref == 'release' &&
+    contains(github.event.pull_request.title, 'chore') &&
+    contains(github.event.pull_request.title, 'release')
+  uses: dequelabs/internal-actions-private/.github/workflows/reusable_reach_out_to_zendesk_on_release_merge.yml@main
+  secrets: inherit
