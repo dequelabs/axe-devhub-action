@@ -4,12 +4,8 @@ name: Comment on related Zendesk tickets upon release
 
 on:
   push:
+    branches:
       - main
 jobs:
-  if: |
-    github.event.pull_request.merged == true &&
-    github.head_ref == 'release' &&
-    contains(github.event.pull_request.title, 'chore') &&
-    contains(github.event.pull_request.title, 'release')
   uses: dequelabs/internal-actions-private/.github/workflows/reusable_reach_out_to_zendesk_on_release_merge.yml@main
   secrets: inherit
