@@ -17,7 +17,7 @@ SERVER_URL="${SERVER_URL%/}"
 RETRY_COUNT=${RETRY_COUNT:-10}
 
 if [ -z "$PROJECT_ID" ]; then
-  echo "::warning::'project_id' is not provided. The API will use the API Key ID to fetch results that may not be found. It is recommended to provide 'project_id'."
+  echo "::warning::'project_id' is not provided. This will become required for newer projects. For legacy projects this will continue to work as is. It is recommended to supply your 'project_id'".
 fi
 
 echo "Attempting to get status for commit $COMMIT_SHA from $SERVER_URL${PROJECT_ID:+ for the project $PROJECT_ID} with $RETRY_COUNT retries"

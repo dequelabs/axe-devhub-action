@@ -6,7 +6,7 @@ inputs:
     description: axe DevHub API Key
     required: true
   project_id:
-    description: watcher project on axe Developer Hub
+    description: the ID of your Axe Developer Hub project
     required: false
   server_url:
     description: axe server URL
