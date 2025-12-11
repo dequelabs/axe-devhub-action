@@ -8,14 +8,14 @@ A full example of the `axe-devhub-action` can be seen at [`.github/workflows/tes
 
 ## Inputs
 
-| name                    | description                                                                                                              | required            | default                                                            |
-| ----------------------- |--------------------------------------------------------------------------------------------------------------------------|---------------------|--------------------------------------------------------------------|
-| `api_key`               | Your axe Watcher API key                                                                                                 | :white_check_mark:  |                                                                    |
-| `project_id`            | The ID of your Axe Developer Hub project                                                                                 | :x:                 | Required for newer projects, legacy projects will continue to work |
-| `server_url`            | Axe server URL                                                                                                           | :x:                 | https://axe.deque.com                                              |
-| `retry_count`           | Number of times to retry                                                                                                 | :x:                 | 10                                                                 |
-| `github_token`          | Optional [PAT](https://docs.github.com/en/github/authenticating-to-github/creating-a-personal-access-token)              | :x:                 | `secrets.GITHUB_TOKEN`                                             |
-| `enable_a11y_threshold` | Enable the a11y threshold, which will cause the action to fail if the number of violations is greater than the threshold | :x:                 | `false`                                                            |
+| name                    | description                                                                                                              | required            | default                                                                                   |
+| ----------------------- |--------------------------------------------------------------------------------------------------------------------------|---------------------|-------------------------------------------------------------------------------------------|
+| `api_key`               | Your axe Watcher API key                                                                                                 | :white_check_mark:  |                                                                                           |
+| `project_id`            | The ID of your Axe Developer Hub project                                                                                 | :x:                 | Required for newer projects after December 9, 2025. Legacy projects will continue to work |
+| `server_url`            | Axe server URL                                                                                                           | :x:                 | https://axe.deque.com                                                                     |
+| `retry_count`           | Number of times to retry                                                                                                 | :x:                 | 10                                                                                        |
+| `github_token`          | Optional [PAT](https://docs.github.com/en/github/authenticating-to-github/creating-a-personal-access-token)              | :x:                 | `secrets.GITHUB_TOKEN`                                                                    |
+| `enable_a11y_threshold` | Enable the a11y threshold, which will cause the action to fail if the number of violations is greater than the threshold | :x:                 | `false`                                                                                   |
 
 ## Outputs
 
