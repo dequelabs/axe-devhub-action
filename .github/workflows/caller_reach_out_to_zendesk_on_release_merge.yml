@@ -1,0 +1,12 @@
+name: Comment on related Zendesk tickets upon release
+#Description: Whenever the release branch is merged into main or master, call
+#the reusable_reach_out_to_zendesk_on_release_merge workflow in internal-actions-private.
+
+on:
+  push:
+    branches:
+      - main
+jobs:
+  notify-zendesk:
+    uses: dequelabs/internal-actions-private/.github/workflows/reusable_reach_out_to_zendesk_on_release_merge.yml@main
+    secrets: inherit
