@@ -11,6 +11,11 @@ describe("App", () => {
       cy.get("header").should("exist");
       cy.get('header a[href="/violations"]').should("exist");
     });
+
+     it("demo test", () => {
+      cy.visit("https://broken-workshop.dequelabs.com/");
+    });
+    
   });
 
   describe.skip("violations page", () => {
