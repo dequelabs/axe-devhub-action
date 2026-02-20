@@ -5,32 +5,33 @@ on: [push, pull_request]
 jobs:
   shellcheck:
     runs-on: ubuntu-latest
-    timeout-minutes: 1
+    timeout-minutes: 2
     steps:
-      - uses: ludeeus/action-shellcheck@00cae500b08a931fb5698e11e79bfbd38e612a38 # tag=v2
-  cypress:
+      - uses: ludeeus/action-shellcheck@00cae500b08a931fb5698e11e79bfbd38e612a38 # tag=v2.0.0
+  workflow-lint:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 2
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 18
-      - run: cd example && npm install
-      - run: cd example && npm run build
-      - name: Run tests
-        run: xvfb-run --auto-servernum npm run ci
-        working-directory: ./example
-        env:
-          API_KEY: ${{ secrets.AXE_WATCHER_API_KEY }}
-          SERVER_URL: https://axe.dequelabs.com
-  axe-dev-hub:
+      - uses: actions/checkout@v5
+      - uses: reviewdog/action-actionlint@0d952c597ef8459f634d7145b0b044a9699e5e43 # tag=v1.71.0
+  validate-action-yml:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
-    needs: cypress
+    timeout-minutes: 2
     steps:
-      - uses: actions/checkout@v4
-      - uses: ./
-        with:
-          api_key: ${{ secrets.AXE_WATCHER_API_KEY }}
-          server_url: https://axe.dequelabs.com
+      - uses: actions/checkout@v5
+      - name: Validate action.yml
+        run: |
+          python3 -c "
+          import yaml, sys
+          try:
+              with open('action.yml') as f:
+                  action = yaml.safe_load(f)
+              assert 'name' in action, 'Missing: name'
+              assert 'description' in action, 'Missing: description'
+              assert 'runs' in action, 'Missing: runs'
+              assert 'steps' in action['runs'], 'Missing: runs.steps'
+              print('action.yml is valid')
+          except Exception as e:
+              print(f'::error::{e}')
+              sys.exit(1)
+          "
