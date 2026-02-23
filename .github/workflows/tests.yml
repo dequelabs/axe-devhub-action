@@ -75,7 +75,9 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - name: Run axe DevHub action
+        id: axe-devhub-action
         uses: ./
+        continue-on-error: true
         with:
           github_token: ${{ secrets.PAT }}
           project_id: ${{ secrets.PROJECT_ID_AXE_WATCHER_IN_DEV_FOR_TESTS_YML }}
@@ -83,4 +85,11 @@ jobs:
           commit_sha: ${{ needs.run-watcher-tests.outputs.commit_sha }}
           server_url: 'https://axe.dequelabs.com'
           retry_count: '3'
-          enable_a11y_threshold: 'true'
+      - name: Verify expected failure
+        run: |
+          if [ "${{ steps.axe-devhub-action.outcome }}" = "failure" ] && [ "${{ steps.axe-devhub-action.outputs.issue_count }}" -gt 0 ]; then
+            echo "Action failed with ${{ steps.axe-devhub-action.outputs.issue_count }} violations — expected behavior."
+          else
+            echo "::error::Unexpected outcome: ${{ steps.axe-devhub-action.outcome }}, issue_count: ${{ steps.axe-devhub-action.outputs.issue_count }}"
+            exit 1
+          fi
