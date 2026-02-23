@@ -79,10 +79,9 @@ jobs:
         uses: ./
         continue-on-error: true
         with:
-#          github_token: ${{ secrets.PAT }}
           project_id: ${{ secrets.PROJECT_ID_AXE_WATCHER_IN_DEV_FOR_TESTS_YML }}
           api_key: ${{ secrets.API_AXE_WATCHER_IN_DEV_FOR_TESTS_YML }}
-          commit_sha: ${{ needs.run-watcher-tests.outputs.commit_sha }}
+#          commit_sha: ${{ needs.run-watcher-tests.outputs.commit_sha }}
           server_url: 'https://axe.dequelabs.com'
           retry_count: '3'
       - name: Verify expected failure
