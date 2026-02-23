@@ -60,7 +60,7 @@ runs:
         API_KEY: ${{ inputs.api_key }}
         SERVER_URL: ${{ inputs.server_url }}
         RETRY_COUNT: ${{ inputs.retry_count }}
-        COMMIT_SHA: ${{ github.sha }}
+        COMMIT_SHA: ${{ inputs.commit_sha }}
         ENABLE_A11Y_THRESHOLD: ${{ inputs.enable_a11y_threshold }}
         PROJECT_ID: ${{ inputs.project_id }}
     - name: Add a comment with accessibility violations over a11y threshold into the current PR
