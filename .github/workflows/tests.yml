@@ -43,6 +43,8 @@ jobs:
   run-watcher-tests:
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    outputs:
+      commit_sha: ${{ steps.get-sha.outputs.commit_sha }}
     steps:
       - name: Checkout watcher-examples repo
         uses: actions/checkout@v6
@@ -63,6 +65,9 @@ jobs:
           API_KEY: ${{ secrets.API_AXE_WATCHER_IN_DEV_FOR_TESTS_YML }}
           PROJECT_ID: ${{ secrets.PROJECT_ID_AXE_WATCHER_IN_DEV_FOR_TESTS_YML }}
           SERVER_URL: 'https://axe.dequelabs.com'
+      - name: Get commit SHA
+        id: get-sha
+        run: echo "commit_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
   run-devhub-action:
     needs: run-watcher-tests
     runs-on: ubuntu-latest
@@ -77,3 +82,4 @@ jobs:
           server_url: 'https://axe.dequelabs.com'
           retry_count: '3'
           github_token: ${{ secrets.PAT }}
+          commit_sha: ${{ needs.run-watcher-tests.outputs.commit_sha }}
