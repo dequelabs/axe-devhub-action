@@ -58,7 +58,7 @@ jobs:
         run: npx playwright install chromium --with-deps
       - name: Run Playwright tests with debug output
         working-directory: js/playwright/basic
-        run: DEBUG=axe* npm run test
+        run: DEBUG="axe*" npm run test
         env:
           API_KEY: ${{ secrets.API_AXE_WATCHER_IN_DEV_FOR_TESTS_YML }}
           PROJECT_ID: ${{ secrets.PROJECT_ID_AXE_WATCHER_IN_DEV_FOR_TESTS_YML }}
@@ -75,3 +75,5 @@ jobs:
           project_id: ${{ secrets.PROJECT_ID_AXE_WATCHER_IN_DEV_FOR_TESTS_YML }}
           api_key: ${{ secrets.API_AXE_WATCHER_IN_DEV_FOR_TESTS_YML }}
           server_url: 'https://axe.dequelabs.com'
+          retry_count: '3'
+          github_token: ${{ secrets.PAT }}
