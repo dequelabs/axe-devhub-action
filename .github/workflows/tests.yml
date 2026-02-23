@@ -86,10 +86,13 @@ jobs:
           server_url: 'https://axe.dequelabs.com'
           retry_count: '3'
       - name: Verify expected failure
+        env:
+          OUTCOME: ${{ steps.axe-devhub-action.outcome }}
+          ISSUE_COUNT: ${{ steps.axe-devhub-action.outputs.issue_count }}
         run: |
-          if [ "${{ steps.axe-devhub-action.outcome }}" = "failure" ] && [ "${{ steps.axe-devhub-action.outputs.issue_count }}" -gt 0 ]; then
-            echo "Action failed with ${{ steps.axe-devhub-action.outputs.issue_count }} violations — expected behavior."
+          if [ "$OUTCOME" = "failure" ] && [ "$ISSUE_COUNT" -gt 0 ]; then
+            echo "Action failed with $ISSUE_COUNT violations — expected behavior."
           else
-            echo "::error::Unexpected outcome: ${{ steps.axe-devhub-action.outcome }}, issue_count: ${{ steps.axe-devhub-action.outputs.issue_count }}"
+            echo "::error::Unexpected outcome: $OUTCOME, issue_count: $ISSUE_COUNT"
             exit 1
           fi
