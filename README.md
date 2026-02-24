@@ -1,7 +1,6 @@
 # axe-devhub-action
 
-A GitHub Action for reporting the axe DevHub accessibility status of a particular commit. It does not run axe tests itself, but rather reports on the results of axe tests that have already been run and uploaded to axe DevHub. To use this action, you will need to have already run axe tests and uploaded the results to axe DevHub for the commit you want to report on. To run tests, the [watcher-examples](https://github.com/dequelabs/watcher-examples) repo can be used as an example. For full documentation, see [Using the axe Developer Hub GitHub Action](https://docs.deque.com/developer-hub/2/en/dh-github-action).
-
+A GitHub Action that fetches accessibility results from Axe Developer Hub for a given commit and integrates them into your pull request workflow. Your test suite must already be instrumented with Axe Watcher and have uploaded results for the current commit before this action runs. See https://docs.deque.com/developer-hub/2/en/dh-github-action for more setup information.
 
 ## Inputs
 
