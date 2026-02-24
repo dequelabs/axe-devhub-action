@@ -1,21 +1,18 @@
 # axe-devhub-action
 
-> A GitHub Action for reporting the axe DevHub status of a particular commit.
-
-## Example Workflow
-
-A full example of the `axe-devhub-action` can be seen at [`.github/workflows/tests.yml`](./.github/workflows/tests.yml).
+A GitHub Action that fetches accessibility results from Axe Developer Hub for a given commit and integrates them into your pull request workflow. Your test suite must already be instrumented with Axe Watcher and have uploaded results for the current commit before this action runs. See https://docs.deque.com/developer-hub/2/en/dh-github-action for more setup information.
 
 ## Inputs
 
 | name                    | description                                                                                                              | required            | default                                                                                   |
-| ----------------------- |--------------------------------------------------------------------------------------------------------------------------|---------------------|-------------------------------------------------------------------------------------------|
-| `api_key`               | Your Axe Developer Hub API key                                                                                                 | :white_check_mark:  |                                                                                           |
+|-------------------------|--------------------------------------------------------------------------------------------------------------------------|---------------------|-------------------------------------------------------------------------------------------|
+| `api_key`               | Your Axe Developer Hub API key                                                                                           | :white_check_mark:  |                                                                                           |
 | `project_id`            | The ID of your Axe Developer Hub project                                                                                 | :x:                 | Required for newer projects after December 9, 2025. Legacy projects will continue to work |
 | `server_url`            | Axe server URL                                                                                                           | :x:                 | https://axe.deque.com                                                                     |
 | `retry_count`           | Number of times to retry                                                                                                 | :x:                 | 10                                                                                        |
 | `github_token`          | Optional [PAT](https://docs.github.com/en/github/authenticating-to-github/creating-a-personal-access-token)              | :x:                 | `secrets.GITHUB_TOKEN`                                                                    |
 | `enable_a11y_threshold` | Enable the a11y threshold, which will cause the action to fail if the number of violations is greater than the threshold | :x:                 | `false`                                                                                   |
+| `commit_sha`            | Override the commit SHA to check status for                                                                              | :x:                 | github.sha                                                                                   |
 
 ## Outputs
 
