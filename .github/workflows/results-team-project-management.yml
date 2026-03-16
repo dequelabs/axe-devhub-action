@@ -8,7 +8,7 @@ concurrency:
   # Cancel in-progress runs only for the exact same event on the same issue/PR.
   # e.g. two 'labeled' events with the same label on the same issue will cancel the previous,
   # but 'closed' and 'labeled' or two different labels will run in parallel.
-  group: "${{ github.workflow }}-${{ github.event.action }}-${{ github.event.label.name || '' }}-${{ github.event.issue.number || github.event.pull_request.number }}"
+  group: "${{ github.workflow }}-${{ github.event.action }}-${{ github.event.label.name || '' }}-${{ github.event.issue.number }}"
   cancel-in-progress: true
 
 jobs:
@@ -40,6 +40,6 @@ jobs:
     with:
       issue-number: ${{ github.event.issue.number }}
       repo-name: ${{ github.event.repository.name }}
-      repo-owner: ${{ github.event.repository.owner.login }}
+      repo-owner: ${{ github.repository_owner }}
     secrets:
       token: ${{ secrets.PAT }}
