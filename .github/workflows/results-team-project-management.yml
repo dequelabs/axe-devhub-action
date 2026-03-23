@@ -1,0 +1,45 @@
+name: Results Team Project Management
+
+on:
+  issues:
+    types: [closed, labeled]
+
+concurrency:
+  # Cancel in-progress runs only for the exact same event on the same issue/PR.
+  # e.g. two 'labeled' events with the same label on the same issue will cancel the previous,
+  # but 'closed' and 'labeled' or two different labels will run in parallel.
+  group: "${{ github.workflow }}-${{ github.event.action }}-${{ github.event.label.name || '' }}-${{ github.event.issue.number }}"
+  cancel-in-progress: true
+
+jobs:
+  add-docs-labels:
+    if: github.event_name == 'issues' && github.event.action == 'closed' && github.event.issue.state_reason == 'completed'
+    uses: dequelabs/results-team/.github/workflows/add-docs-labels-on-close.yml@main
+    with:
+      issue-number: ${{ github.event.issue.number }}
+    secrets:
+      token: ${{ secrets.PAT }}
+
+  check-issue-closed-or-labeled:
+    if: github.event_name == 'issues'
+    uses: dequelabs/results-team/.github/workflows/check-issue-is-closed-or-labeled.yml@main
+    with:
+      action: ${{ github.event.action }}
+      issue-state-reason: ${{ github.event.issue.state_reason || '' }}
+      issue-label-name: ${{ github.event.label.name || '' }}
+      issue-number: ${{ github.event.issue.number }}
+      repo-name: ${{ github.event.repository.name }}
+      repo-owner: ${{ github.repository_owner }}
+      issue-url: ${{ github.event.issue.html_url }}
+    secrets:
+      token: ${{ secrets.PAT }}
+
+  set-date-closed:
+    if: github.event_name == 'issues' && github.event.action == 'closed'
+    uses: dequelabs/results-team/.github/workflows/set-date-closed-on-issue-close.yml@main
+    with:
+      issue-number: ${{ github.event.issue.number }}
+      repo-name: ${{ github.event.repository.name }}
+      repo-owner: ${{ github.repository_owner }}
+    secrets:
+      token: ${{ secrets.PAT }}
