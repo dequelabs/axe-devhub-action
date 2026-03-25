@@ -3,18 +3,12 @@ name: Results Team Project Management
 on:
   issues:
     types: [closed, labeled]
-  pull_request:
-    types: [opened, reopened, synchronize]
-    branches:
-      # Only run on this branch to set PR reviewers, which is the main branch for active development.
-      # We don't want to set reviewers for PRs opened against other branches.
-      - main
 
 concurrency:
   # Cancel in-progress runs only for the exact same event on the same issue/PR.
   # e.g. two 'labeled' events with the same label on the same issue will cancel the previous,
   # but 'closed' and 'labeled' or two different labels will run in parallel.
-  group: "${{ github.workflow }}-${{ github.event.action }}-${{ github.event.label.name || '' }}-${{ github.event.issue.number || github.event.pull_request.number }}"
+  group: "${{ github.workflow }}-${{ github.event.action }}-${{ github.event.label.name || '' }}-${{ github.event.issue.number }}"
   cancel-in-progress: true
 
 jobs:
@@ -50,13 +44,5 @@ jobs:
       repo-name: ${{ github.event.repository.name }}
       repo-owner: ${{ github.repository_owner }}
       project-number: 188
-    secrets:
-      token: ${{ secrets.PAT }}
-
-  set-pr-reviewer:
-    if: github.event_name == 'pull_request' && github.actor != 'dependabot[bot]'
-    uses: dequelabs/results-team/.github/workflows/set-pr-reviewer-based-on-issue-label.yml@main
-    with:
-      pull-request-number: ${{ github.event.pull_request.number }}
     secrets:
       token: ${{ secrets.PAT }}
