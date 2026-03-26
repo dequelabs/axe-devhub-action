@@ -13,7 +13,7 @@ concurrency:
 
 jobs:
   add-docs-labels:
-    if: github.event_name == 'issues' && github.event.action == 'closed' && github.event.issue.state_reason == 'completed'
+    if: github.event_name == 'issues' && github.event.action == 'closed' && github.event.issue.state_reason == 'completed' && contains(github.event.issue.labels.*.name, 'team-results')
     uses: dequelabs/results-team/.github/workflows/add-docs-labels-on-close.yml@main
     with:
       issue-number: ${{ github.event.issue.number }}
@@ -21,7 +21,7 @@ jobs:
       token: ${{ secrets.PAT }}
 
   check-issue-closed-or-labeled:
-    if: github.event_name == 'issues'
+    if: github.event_name == 'issues' && contains(github.event.issue.labels.*.name, 'team-results')
     uses: dequelabs/results-team/.github/workflows/check-issue-is-closed-or-labeled.yml@main
     with:
       action: ${{ github.event.action }}
@@ -31,15 +31,18 @@ jobs:
       repo-name: ${{ github.event.repository.name }}
       repo-owner: ${{ github.repository_owner }}
       issue-url: ${{ github.event.issue.html_url }}
+      team-label: 'team-results'
+      project-number: 188
     secrets:
       token: ${{ secrets.PAT }}
 
   set-date-closed:
-    if: github.event_name == 'issues' && github.event.action == 'closed'
+    if: github.event_name == 'issues' && github.event.action == 'closed' && contains(github.event.issue.labels.*.name, 'team-results')
     uses: dequelabs/results-team/.github/workflows/set-date-closed-on-issue-close.yml@main
     with:
       issue-number: ${{ github.event.issue.number }}
       repo-name: ${{ github.event.repository.name }}
       repo-owner: ${{ github.repository_owner }}
+      project-number: 188
     secrets:
       token: ${{ secrets.PAT }}
