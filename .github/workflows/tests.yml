@@ -16,7 +16,7 @@ jobs:
     timeout-minutes: 2
     steps:
       - uses: actions/checkout@v6
-      - uses: reviewdog/action-actionlint@0d952c597ef8459f634d7145b0b044a9699e5e43 # tag=v1.71.0
+      - uses: reviewdog/action-actionlint@6fb7acc99f4a1008869fa8a0f09cfca740837d9d # tag=v1.72.0
   validate-action-yml:
     runs-on: ubuntu-latest
     timeout-minutes: 2
