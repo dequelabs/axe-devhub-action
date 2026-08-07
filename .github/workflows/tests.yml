@@ -10,7 +10,22 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
+      # Without a checkout there are no scripts in the workspace to scan.
+      - uses: actions/checkout@v6
       - uses: ludeeus/action-shellcheck@00cae500b08a931fb5698e11e79bfbd38e612a38 # tag=v2.0.0
+        with:
+          # style/info findings are advisory; fail the build on real defects only
+          severity: warning
+  pr-comment-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 22
+      - name: Test pr-comment.sh against a mock GitHub API
+        run: node --test test/*.test.mjs
   workflow-lint:
     runs-on: ubuntu-latest
     timeout-minutes: 2
@@ -70,6 +85,9 @@ jobs:
     needs: run-watcher-tests
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
       - uses: actions/checkout@v6
       - name: Run axe DevHub action
@@ -94,5 +112,26 @@ jobs:
             echo "Action failed with $ISSUE_COUNT violations — expected behavior."
           else
             echo "::error::Unexpected outcome: $OUTCOME, issue_count: $ISSUE_COUNT"
+            exit 1
+          fi
+      # The action found violations, so it must have left exactly one sticky
+      # comment on this PR — and re-runs must update it rather than add another.
+      # Fork PRs get a read-only token (and no secrets), so this cannot run there.
+      - name: Verify the sticky comment is present exactly once
+        if: ${{ github.event.pull_request.head.repo.fork == false }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          # Must stay byte-identical to MARKER in pr-comment.sh
+          MARKER: '<!-- Sticky Pull Request Commentaxe-devhub -->'
+        run: |
+          set -euo pipefail
+          count=$(gh api --paginate \
+            "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments?per_page=100" \
+            | jq -s --arg marker "$MARKER" \
+              '[ add[] | select(.body | contains($marker)) ] | length')
+          echo "Found $count axe DevHub comment(s) on PR #$PR_NUMBER."
+          if [ "$count" != "1" ]; then
+            echo "::error::Expected exactly 1 axe DevHub sticky comment, found $count"
             exit 1
           fi
