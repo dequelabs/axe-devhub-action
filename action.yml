@@ -62,19 +62,21 @@ runs:
         PROJECT_ID: ${{ inputs.project_id }}
     - name: Add a comment with accessibility violations into the current PR
       if: ${{ failure() }}
-      run: bash "$GITHUB_ACTION_PATH/pr-comment.sh"
+      run: ${{ github.action_path }}/pr-comment.sh
       shell: bash
       env:
         MODE: upsert
         GITHUB_TOKEN: ${{ inputs.github_token }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
         ENABLE_A11Y_THRESHOLD: ${{ inputs.enable_a11y_threshold }}
         ISSUE_COUNT: ${{ steps.main.outputs.issue_count }}
         ISSUES_OVER_A11Y_THRESHOLD: ${{ steps.main.outputs.issues_over_a11y_threshold }}
         AXE_URL: ${{ steps.main.outputs.axe_url }}
     - name: Hide a previously added comment if there are no violations.
       if: ${{ success() }}
-      run: bash "$GITHUB_ACTION_PATH/pr-comment.sh"
+      run: ${{ github.action_path }}/pr-comment.sh
       shell: bash
       env:
         MODE: hide
         GITHUB_TOKEN: ${{ inputs.github_token }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}

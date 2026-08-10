@@ -5,6 +5,9 @@
 #   MODE=upsert   create the comment, or update it in place if it already exists
 #   MODE=hide     collapse the existing comment as OUTDATED
 #
+# Everything derivable from the workflow context is passed in by action.yml
+# rather than looked up here -- PR_NUMBER is github.event.pull_request.number.
+#
 # Commenting is best effort: every failure warns and exits 0. This also runs on
 # the success path, where a non-zero exit would turn a passing run red.
 
@@ -16,12 +19,23 @@ set -uo pipefail
 readonly MARKER='<!-- Sticky Pull Request Commentaxe-devhub -->'
 readonly CLASSIFIER='OUTDATED'
 
+# Workflow commands are terminated by a newline and use % as an escape
+# character, so API-supplied text has to be encoded or it truncates the
+# annotation -- or forges another command.
+escape_data() {
+  local data="$*"
+  data="${data//%/%25}"
+  data="${data//$'\r'/%0D}"
+  data="${data//$'\n'/%0A}"
+  printf '%s' "$data"
+}
+
 warn() {
-  echo "::warning::$*"
+  printf '::warning::%s\n' "$(escape_data "$*")"
 }
 
 notice() {
-  echo "::notice::$*"
+  printf '::notice::%s\n' "$(escape_data "$*")"
 }
 
 TmpDir=""
@@ -93,8 +107,7 @@ graphql() {
   return 0
 }
 
-PrNumber=""
-PrNumberSource=""
+PrNumber="${PR_NUMBER:-}"
 
 is_count() {
   case "${1:-}" in
@@ -105,49 +118,6 @@ is_count() {
 
 is_pr_number() {
   is_count "${1:-}" && [ "$1" -gt 0 ]
-}
-
-# Only open pull requests count, and on a push the one whose head branch
-# matches the pushed ref wins. Note the lookup SHA is deliberately not the
-# action's `commit_sha` input, which may name a commit from another repository.
-resolve_pr_number() {
-  local number="" lookup_sha="" branch status
-
-  if [ -n "${GITHUB_EVENT_PATH:-}" ] && [ -f "$GITHUB_EVENT_PATH" ]; then
-    number=$(jq -r '.pull_request.number // empty' "$GITHUB_EVENT_PATH" 2>/dev/null)
-    if is_pr_number "$number"; then
-      PrNumber="$number"
-      PrNumberSource="event payload"
-      return 0
-    fi
-    lookup_sha=$(jq -r '.pull_request.head.sha // empty' "$GITHUB_EVENT_PATH" 2>/dev/null)
-  fi
-
-  lookup_sha="${lookup_sha:-${GITHUB_SHA:-}}"
-  if [ -z "$lookup_sha" ]; then
-    return 0
-  fi
-
-  status=$(http GET "$GITHUB_API_URL/repos/$GITHUB_REPOSITORY/commits/$lookup_sha/pulls?per_page=100")
-  if [ "$status" != "200" ]; then
-    report_http_failure "Looking up the pull request for commit $lookup_sha" "$status"
-    return 0
-  fi
-
-  branch="${GITHUB_REF:-}"
-  branch="${branch#refs/heads/}"
-  number=$(jq -r --arg branch "$branch" '
-    [ .[] | select(.state == "open") ] as $open
-    | [ $open[] | select(.head.ref == $branch) ] + $open
-    | .[0].number // empty
-  ' <"$ResponseBody" 2>/dev/null)
-
-  if is_pr_number "$number"; then
-    PrNumber="$number"
-    PrNumberSource="commit $lookup_sha"
-  fi
-
-  return 0
 }
 
 PreviousCommentId=""
@@ -342,14 +312,14 @@ main() {
     return 0
   fi
 
-  resolve_pr_number
-
+  # PR_NUMBER comes from github.event.pull_request.number, so it is empty on
+  # any event that is not a pull request.
   if ! is_pr_number "$PrNumber"; then
-    notice "No open pull request is associated with this run; skipping the pull request comment."
+    notice "This run is not associated with a pull request; skipping the comment."
     return 0
   fi
 
-  echo "Using pull request #$PrNumber (resolved from the $PrNumberSource)."
+  echo "Using pull request #$PrNumber."
 
   if [ "$mode" = "upsert" ]; then
     do_upsert
