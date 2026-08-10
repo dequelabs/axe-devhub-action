@@ -30,13 +30,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: reviewdog/action-actionlint@0d952c597ef8459f634d7145b0b044a9699e5e43 # tag=v1.71.0
   validate-action-yml:
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Validate action.yml
         run: |
           python3 -c "
@@ -60,7 +60,7 @@ jobs:
       commit_sha: ${{ steps.get-sha.outputs.commit_sha }}
     steps:
       - name: Checkout watcher-examples repo
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           repository: dequelabs/watcher-examples
       - name: Setup Node.js
@@ -104,7 +104,7 @@ jobs:
       contents: read
       pull-requests: write
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Run axe DevHub action
         id: axe-devhub-action
         uses: ./
