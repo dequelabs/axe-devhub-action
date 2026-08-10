@@ -2,6 +2,20 @@
 
 A GitHub Action that fetches accessibility results from Axe Developer Hub for a given commit and integrates them into your pull request workflow. Your test suite must already be instrumented with Axe Watcher and have uploaded results for the current commit before this action runs. See https://docs.deque.com/developer-hub/2/en/dh-github-action for more setup information.
 
+## Permissions
+
+The action comments on the pull request associated with the commit, so the calling job needs a token that can write to pull requests:
+
+```yaml
+permissions:
+  contents: read         # only if the job also runs actions/checkout
+  pull-requests: write   # add, update and hide the accessibility comment
+```
+
+Note that declaring a `permissions` block sets every scope you do not list to `none`, so include `contents: read` if the job checks out your repository.
+
+Commenting is best effort. If the token cannot write — most commonly on a pull request from a fork, where `GITHUB_TOKEN` is always read-only — the action logs a warning and carries on; the accessibility result itself is unaffected.
+
 ## Inputs
 
 | name                    | description                                                                                                              | required            | default                                                                                   |
