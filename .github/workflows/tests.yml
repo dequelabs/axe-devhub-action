@@ -65,15 +65,30 @@ jobs:
           repository: dequelabs/watcher-examples
       - name: Setup Node.js
         uses: actions/setup-node@v6
+        with:
+          node-version: 22
       - name: Install dependencies
         working-directory: js/playwright/basic
         run: npm install
       - name: Install Playwright specific dependencies
         working-directory: js/playwright/basic
         run: npx playwright install chromium --with-deps
+      # Since watcher-examples@149d134e the fixture launches `executablePath: $CHROME_BIN`,
+      # and the runner image pre-sets that to branded Chrome, which ignores the
+      # --load-extension flag axe Watcher needs. Upstream's own CI points CHROME_BIN at a
+      # Chrome for Testing build; do the same with the one installed above.
       - name: Run Playwright tests with debug output
         working-directory: js/playwright/basic
-        run: DEBUG="axe*" npm run test
+        timeout-minutes: 2
+        run: |
+          set -euo pipefail
+          CHROME_BIN="$(node -p "require('playwright').chromium.executablePath()")"
+          export CHROME_BIN
+          echo "CHROME_BIN=$CHROME_BIN"
+          "$CHROME_BIN" --version
+          # --exit: when the fixture's `before` hook fails, its `after` hook cannot close a
+          # browser that never launched, and mocha waits on the orphan until it is killed.
+          DEBUG="axe*" npm run test -- --exit
         env:
           API_KEY: ${{ secrets.API_AXE_WATCHER_IN_DEV_FOR_TESTS_YML }}
           PROJECT_ID: ${{ secrets.PROJECT_ID_AXE_WATCHER_IN_DEV_FOR_TESTS_YML }}
