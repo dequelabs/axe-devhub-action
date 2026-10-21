@@ -71,7 +71,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          # Pinned for the same eMudhra CA fix as pr-comment-tests.
+          # Same ^22.23.4 floor as pr-comment-tests, for the eMudhra CA fix.
           node-version: '^22.23.4'
       - name: Print Node.js version
         run: node --version
