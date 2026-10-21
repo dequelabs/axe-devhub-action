@@ -25,8 +25,9 @@ jobs:
         with:
           # 22.23.4 is the first 22.x that distrusts the compromised eMudhra CAs.
           # A bare `22` can reuse an older cached runner build; the range keeps that
-          # floor and still picks up later 22.x security releases.
+          # floor, and check-latest picks up later 22.x security releases.
           node-version: '^22.23.4'
+          check-latest: true
       - name: Print Node.js version
         run: node --version
       - name: Test pr-comment.sh against a mock GitHub API
@@ -73,6 +74,7 @@ jobs:
         with:
           # Same ^22.23.4 floor as pr-comment-tests, for the eMudhra CA fix.
           node-version: '^22.23.4'
+          check-latest: true
       - name: Print Node.js version
         run: node --version
       - name: Install dependencies
