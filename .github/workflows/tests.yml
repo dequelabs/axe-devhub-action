@@ -24,9 +24,11 @@ jobs:
       - uses: actions/setup-node@v6
         with:
           # 22.23.4 is the first 22.x that distrusts the compromised eMudhra CAs.
-          # A bare `22` can reuse an older cached runner build.
-          node-version: 22.23.4
-      - run: node --version
+          # A bare `22` can reuse an older cached runner build; the range keeps that
+          # floor and still picks up later 22.x security releases.
+          node-version: '^22.23.4'
+      - name: Print Node.js version
+        run: node --version
       - name: Test pr-comment.sh against a mock GitHub API
         run: node --test test/*.test.mjs
   workflow-lint:
@@ -70,8 +72,9 @@ jobs:
         uses: actions/setup-node@v6
         with:
           # Pinned for the same eMudhra CA fix as pr-comment-tests.
-          node-version: 22.23.4
-      - run: node --version
+          node-version: '^22.23.4'
+      - name: Print Node.js version
+        run: node --version
       - name: Install dependencies
         working-directory: js/playwright/basic
         run: npm install
