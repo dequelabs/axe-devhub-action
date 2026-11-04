@@ -60,6 +60,17 @@ ProjectName=$(echo "$Response" | jq -r .project_name)
 ProjectId=$(echo "$Response" | jq -r .project_id)
 DifferenceInPageStateCount=$(echo "$Response" | jq -r .difference_in_page_states)
 
+# Optional comparison figures: absent from older backends, or null when not computed.
+# Anything but an integer becomes empty, so it never reaches a numeric test or prints "null".
+optional_integer() {
+  local value
+  value=$(echo "$Response" | jq -r "$1 // empty")
+  [[ "$value" =~ ^-?[0-9]+$ ]] && echo "$value"
+  return 0
+}
+PageStatesNewlyScanned=$(optional_integer .page_states_newly_scanned)
+PageStatesNoLongerScanned=$(optional_integer .page_states_no_longer_scanned)
+
 # Only set outs when running in GitHub Actions.
 if [ -n "${GITHUB_OUTPUT+x}" ]; then
   echo "project_id=$ProjectId" >>"$GITHUB_OUTPUT"
@@ -72,6 +83,8 @@ if [ -n "${GITHUB_OUTPUT+x}" ]; then
   echo "issues_over_a11y_threshold=$IssuesOverA11yThreshold" >>"$GITHUB_OUTPUT"
   echo "difference_in_page_states=$DifferenceInPageStateCount" >> "$GITHUB_OUTPUT"
   echo "page_states=$LastRunPageStateCount" >> "$GITHUB_OUTPUT"
+  echo "page_states_newly_scanned=$PageStatesNewlyScanned" >> "$GITHUB_OUTPUT"
+  echo "page_states_no_longer_scanned=$PageStatesNoLongerScanned" >> "$GITHUB_OUTPUT"
 fi
 
 echo
@@ -96,6 +109,13 @@ elif [ "$DifferenceInPageStateCount" -lt 0 ]; then
   echo "$AbsoluteDifference fewer page states"
 else
   echo "No change in page state count"
+fi
+
+if [ -n "$PageStatesNewlyScanned" ]; then
+  echo "$PageStatesNewlyScanned page states newly scanned"
+fi
+if [ -n "$PageStatesNoLongerScanned" ]; then
+  echo "$PageStatesNoLongerScanned page states no longer scanned"
 fi
 
 if [ "$ENABLE_A11Y_THRESHOLD" = "true" ]; then
