@@ -7,7 +7,7 @@
 
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -76,7 +76,8 @@ async function run(response) {
   });
 
   const outputs = {};
-  for (const line of readFileSync(outputFile, "utf8").split("\n")) {
+  const written = existsSync(outputFile) ? readFileSync(outputFile, "utf8") : "";
+  for (const line of written.split("\n")) {
     const at = line.indexOf("=");
     if (at > 0) outputs[line.slice(0, at)] = line.slice(at + 1);
   }
