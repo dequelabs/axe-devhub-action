@@ -65,10 +65,16 @@ jobs:
     outputs:
       commit_sha: ${{ steps.get-sha.outputs.commit_sha }}
     steps:
-      - name: Checkout watcher-examples repo
-        uses: actions/checkout@v6
-        with:
-          repository: dequelabs/watcher-examples
+      # Scans ci/watcher-fixture/fixture.html, a page with deliberate violations, so the
+      # action below always has some to report. The third-party login page this used
+      # to scan (via watcher-examples) has had none since at least 2026-10-21.
+      - uses: actions/checkout@v6
+      # axe Watcher records the branch from `git rev-parse --abbrev-ref HEAD`, which is
+      # just "HEAD" on the detached PR merge commit.
+      - name: Name the branch
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+        run: git switch --create "$HEAD_REF"
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
@@ -78,27 +84,16 @@ jobs:
       - name: Print Node.js version
         run: node --version
       - name: Install dependencies
-        working-directory: js/playwright/basic
-        run: npm install
-      - name: Install Playwright specific dependencies
-        working-directory: js/playwright/basic
+        working-directory: ci/watcher-fixture
+        run: npm ci
+      # The bundled Chrome for Testing build; branded Chrome ignores --load-extension.
+      - name: Install Chromium
+        working-directory: ci/watcher-fixture
         run: npx playwright install chromium --with-deps
-      # Since watcher-examples@149d134e the fixture launches `executablePath: $CHROME_BIN`,
-      # and the runner image pre-sets that to branded Chrome, which ignores the
-      # --load-extension flag axe Watcher needs. Upstream's own CI points CHROME_BIN at a
-      # Chrome for Testing build; do the same with the one installed above.
-      - name: Run Playwright tests with debug output
-        working-directory: js/playwright/basic
+      - name: Scan the fixture with axe Watcher
+        working-directory: ci/watcher-fixture
         timeout-minutes: 2
-        run: |
-          set -euo pipefail
-          CHROME_BIN="$(node -p "require('playwright').chromium.executablePath()")"
-          export CHROME_BIN
-          echo "CHROME_BIN=$CHROME_BIN"
-          "$CHROME_BIN" --version
-          # --exit: when the fixture's `before` hook fails, its `after` hook cannot close a
-          # browser that never launched, and mocha waits on the orphan until it is killed.
-          DEBUG="axe*" npm run test -- --exit
+        run: DEBUG="axe*" npm run scan
         env:
           API_KEY: ${{ secrets.API_AXE_WATCHER_IN_DEV_FOR_TESTS_YML }}
           PROJECT_ID: ${{ secrets.PROJECT_ID_AXE_WATCHER_IN_DEV_FOR_TESTS_YML }}
