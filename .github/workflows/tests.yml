@@ -59,9 +59,11 @@ jobs:
               print(f'::error::{e}')
               sys.exit(1)
           "
-  run-watcher-tests:
+  scan-watcher-fixture:
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    permissions:
+      contents: read
     outputs:
       commit_sha: ${{ steps.get-sha.outputs.commit_sha }}
     steps:
@@ -69,6 +71,8 @@ jobs:
       # action below always has some to report. The third-party login page this used
       # to scan (via watcher-examples) has had none since at least 2026-10-21.
       - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
       # axe Watcher records the branch from `git rev-parse --abbrev-ref HEAD`, which is
       # just "HEAD" on the detached PR merge commit.
       - name: Name the branch
@@ -107,7 +111,7 @@ jobs:
         id: get-sha
         run: echo "commit_sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
   run-devhub-action:
-    needs: run-watcher-tests
+    needs: scan-watcher-fixture
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -122,8 +126,8 @@ jobs:
         with:
           project_id: ${{ secrets.PROJECT_ID_AXE_WATCHER_IN_DEV_FOR_TESTS_YML }}
           api_key: ${{ secrets.API_AXE_WATCHER_IN_DEV_FOR_TESTS_YML }}
-          # providing the commit SHA from the watcher tests to ensure we're getting data for the same commit as tests were run against
-          commit_sha: ${{ needs.run-watcher-tests.outputs.commit_sha }}
+          # The commit the fixture scan reported, so the action reads that same run
+          commit_sha: ${{ needs.scan-watcher-fixture.outputs.commit_sha }}
           server_url: 'https://axe.dequelabs.com'
           retry_count: '3'
       # If axe-devhub-action found violations (issue_count > 0), it should fail,

@@ -15,16 +15,15 @@ updates:
           - "minor"
           - "patch"
 
+  # The only npm manifest: the axe Watcher fixture scanned in CI (tests.yml).
+  # Watcher updates are kept so CI exercises the release customers install.
   - package-ecosystem: "npm"
-    directory: "/"
+    directory: "/ci/watcher-fixture"
     schedule:
       interval: "monthly"
     open-pull-requests-limit: 10
     commit-message:
       prefix: "chore"
-    ignore:
-      # Handled separately by its own workflow
-      - dependency-name: "@axe-core/watcher"
     groups:
       # Any updates not caught by the group config will get individual PRs
       npm-low-risk:
