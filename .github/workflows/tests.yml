@@ -75,6 +75,11 @@ jobs:
         env:
           HEAD_REF: ${{ github.head_ref }}
         run: git switch --create "$HEAD_REF"
+      # The dev test project only ingests runs from the repository it was created
+      # for, and it was created for watcher-examples. Report that URL rather than
+      # minting a new project and secrets.
+      - name: Match the test project's repository
+        run: git remote set-url origin https://github.com/dequelabs/watcher-examples
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
