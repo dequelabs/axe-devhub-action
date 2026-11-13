@@ -126,23 +126,25 @@ jobs:
           commit_sha: ${{ needs.run-watcher-tests.outputs.commit_sha }}
           server_url: 'https://axe.dequelabs.com'
           retry_count: '3'
-      # If axe-devhub-action found violations (issue_count > 0), it should fail,
-      # so we want to verify that failure is happening as expected and that we're getting the issue count output
-      - name: Verify expected failure
+      # The watcher-examples scan reports no violations, so the action must pass
+      # and still set its outputs.
+      - name: Verify clean outcome
         env:
           OUTCOME: ${{ steps.axe-devhub-action.outcome }}
           ISSUE_COUNT: ${{ steps.axe-devhub-action.outputs.issue_count }}
+          PROJECT_ID: ${{ steps.axe-devhub-action.outputs.project_id }}
+          AXE_URL: ${{ steps.axe-devhub-action.outputs.axe_url }}
         run: |
-          if [ "$OUTCOME" = "failure" ] && [ "$ISSUE_COUNT" -gt 0 ]; then
-            echo "Action failed with $ISSUE_COUNT violations — expected behavior."
+          if [ "$OUTCOME" = "success" ] && [ "$ISSUE_COUNT" = "0" ] \
+            && [ -n "$PROJECT_ID" ] && [ -n "$AXE_URL" ]; then
+            echo "Action passed with 0 violations — expected behavior."
           else
-            echo "::error::Unexpected outcome: $OUTCOME, issue_count: $ISSUE_COUNT"
+            echo "::error::Unexpected outcome: $OUTCOME, issue_count: $ISSUE_COUNT, project_id: $PROJECT_ID, axe_url: $AXE_URL"
             exit 1
           fi
-      # The action found violations, so it must have left exactly one sticky
-      # comment on this PR — and re-runs must update it rather than add another.
-      # Fork PRs get a read-only token (and no secrets), so this cannot run there.
-      - name: Verify the sticky comment is present exactly once
+      # With no violations the action hides any earlier sticky comment, so none
+      # may be left visible. Fork PRs get a read-only token, so this cannot run there.
+      - name: Verify no sticky comment is left visible
         if: ${{ github.event.pull_request.head.repo.fork == false }}
         env:
           GH_TOKEN: ${{ github.token }}
@@ -151,12 +153,19 @@ jobs:
           MARKER: '<!-- Sticky Pull Request Commentaxe-devhub -->'
         run: |
           set -euo pipefail
-          count=$(gh api --paginate \
-            "repos/$GITHUB_REPOSITORY/issues/$PR_NUMBER/comments?per_page=100" \
-            | jq -s --arg marker "$MARKER" \
-              '[ add[] | select(.body | contains($marker)) ] | length')
-          echo "Found $count axe DevHub comment(s) on PR #$PR_NUMBER."
-          if [ "$count" != "1" ]; then
-            echo "::error::Expected exactly 1 axe DevHub sticky comment, found $count"
+          # shellcheck disable=SC2016 # $owner etc. are GraphQL variables
+          count=$(gh api graphql --paginate \
+            -F owner="${GITHUB_REPOSITORY%/*}" -F name="${GITHUB_REPOSITORY#*/}" -F number="$PR_NUMBER" \
+            -f query='query($owner: String!, $name: String!, $number: Int!, $endCursor: String) {
+              repository(owner: $owner, name: $name) { pullRequest(number: $number) {
+                comments(first: 100, after: $endCursor) {
+                  nodes { body isMinimized }
+                  pageInfo { hasNextPage endCursor }
+                } } } }' \
+            | jq -s --arg marker "$MARKER" '[ .[].data.repository.pullRequest.comments.nodes[]
+                | select((.isMinimized | not) and (.body | contains($marker))) ] | length')
+          echo "Found $count visible axe DevHub comment(s) on PR #$PR_NUMBER."
+          if [ "$count" != "0" ]; then
+            echo "::error::Expected no visible axe DevHub sticky comment, found $count"
             exit 1
           fi
