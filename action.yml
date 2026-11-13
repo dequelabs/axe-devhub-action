@@ -45,6 +45,12 @@ outputs:
   issues_over_a11y_threshold:
     description: Whether the number of violations is over your a11y threshold
     value: ${{ steps.main.outputs.issues_over_a11y_threshold }}
+  page_states_newly_scanned:
+    description: Increase in page states per URL compared with the previous run on the same branch; empty when not reported
+    value: ${{ steps.main.outputs.page_states_newly_scanned }}
+  page_states_no_longer_scanned:
+    description: Decrease in page states per URL compared with the previous run on the same branch; empty when not reported
+    value: ${{ steps.main.outputs.page_states_no_longer_scanned }}
 
 runs:
   using: composite

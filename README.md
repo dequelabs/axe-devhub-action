@@ -41,3 +41,5 @@ Commenting is best effort. If the token cannot write — most commonly on a pull
 | `difference_in_page_states`  | Difference in number of page states detected       |
 | `page_states`                | Number of page states detected                     |
 | `issues_over_a11y_threshold` | Number of issues over a11y threshold               |
+| `page_states_newly_scanned`  | Increase in page states per URL compared with the previous run on the same branch; empty when not reported |
+| `page_states_no_longer_scanned` | Decrease in page states per URL compared with the previous run on the same branch; empty when not reported |

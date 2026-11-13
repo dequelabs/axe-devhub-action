@@ -30,7 +30,7 @@ jobs:
           check-latest: true
       - name: Print Node.js version
         run: node --version
-      - name: Test pr-comment.sh against a mock GitHub API
+      - name: Test main.sh and pr-comment.sh against mock APIs
         run: node --test test/*.test.mjs
   workflow-lint:
     runs-on: ubuntu-latest
