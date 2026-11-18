@@ -18,8 +18,11 @@ const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const SCRIPT = join(ROOT, "main.sh");
 const SHA = "abc123";
 
-// What GET /api-pub/v1/axe-watcher/gh/:sha answers with. Replaced before each run.
-let body = {};
+// What GET /api-pub/v1/axe-watcher/gh/:sha answers with, one reply per request.
+// The last reply repeats. Replaced before each run.
+let replies = [];
+// How many requests main.sh made to that path in the current run.
+let attempts = 0;
 let server;
 let base;
 let dir;
@@ -41,9 +44,19 @@ function commit(overrides = {}) {
   };
 }
 
-/** Run main.sh against the mock API. Resolves to { code, out, outputs }. */
-async function run(response) {
-  body = response;
+/** A reply from the mock API: an HTTP status, a body and optional headers. */
+function reply(status, body, headers = {}) {
+  return { status, body, headers };
+}
+
+/**
+ * Run main.sh against the mock API. Resolves to { code, out, outputs, attempts }.
+ * `response` is the body of a 200 reply. Set `options.replies` to send other replies,
+ * and `options.env` to change the environment of main.sh.
+ */
+async function run(response, options = {}) {
+  replies = options.replies ?? [reply(200, response)];
+  attempts = 0;
   const outputFile = join(dir, `output-${Math.random().toString(36).slice(2)}`);
 
   const childEnv = {
@@ -56,6 +69,7 @@ async function run(response) {
     RETRY_COUNT: "0",
     ENABLE_A11Y_THRESHOLD: "false",
     GITHUB_OUTPUT: outputFile,
+    ...options.env,
   };
 
   const { code, out } = await new Promise((resolve, reject) => {
@@ -81,18 +95,22 @@ async function run(response) {
     const at = line.indexOf("=");
     if (at > 0) outputs[line.slice(0, at)] = line.slice(at + 1);
   }
-  return { code, out, outputs };
+  return { code, out, outputs, attempts };
 }
 
 before(async () => {
   dir = mkdtempSync(join(tmpdir(), "axe-devhub-main-"));
   server = createServer((req, res) => {
-    const payload = JSON.stringify(
-      req.url.startsWith(`/api-pub/v1/axe-watcher/gh/${SHA}`) ? body : { error: "not found" },
-    );
-    res.writeHead(req.url.startsWith("/api-pub/") ? 200 : 404, {
+    let { status, body, headers } = reply(404, { error: "not found" });
+    if (req.url.startsWith(`/api-pub/v1/axe-watcher/gh/${SHA}`)) {
+      ({ status, body, headers } = replies[Math.min(attempts, replies.length - 1)]);
+      attempts += 1;
+    }
+    const payload = typeof body === "string" ? body : JSON.stringify(body);
+    res.writeHead(status, {
       "Content-Type": "application/json",
       "Content-Length": Buffer.byteLength(payload),
+      ...headers,
     });
     res.end(payload);
   });
@@ -194,4 +212,176 @@ describe("page state comparison figures", () => {
       });
     }
   }
+});
+
+describe("permission refusals", () => {
+  // Proving test for results-team#508: a 403 must not use the retries.
+  test("fails on the first attempt with a permission error on a 403", async () => {
+    const { code, out, attempts } = await run(null, {
+      replies: [reply(403, { error: "User does not have access to this project" })],
+      env: { RETRY_COUNT: "3" },
+    });
+
+    assert.equal(attempts, 1, out);
+    assert.equal(code, 1, out);
+    assert.match(out, /^::error::Permission error \(HTTP 403\)/m);
+    assert.match(out, /member of the project/);
+    assert.match(out, /User does not have access to this project/);
+  });
+
+  test("fails on the first attempt with a permission error on a 401", async () => {
+    const { code, out, attempts } = await run(null, {
+      replies: [reply(401, { error: "Unauthorized" })],
+      env: { RETRY_COUNT: "3" },
+    });
+
+    assert.equal(attempts, 1, out);
+    assert.equal(code, 1, out);
+    assert.match(out, /^::error::Permission error \(HTTP 401\)/m);
+    assert.match(out, /valid axe Developer Hub API key/);
+    assert.doesNotMatch(out, /member of the project/);
+  });
+
+  test("fails on the first attempt when a 404 says the project is not found", async () => {
+    const { code, out, attempts } = await run(null, {
+      replies: [reply(404, { error: "Project not found" })],
+      env: { RETRY_COUNT: "3" },
+    });
+
+    assert.equal(attempts, 1, out);
+    assert.equal(code, 1, out);
+    assert.match(out, /Permission error \(HTTP 404\)/);
+    assert.match(out, /member of the project/);
+  });
+
+  test("does not call the server without an API key", async () => {
+    const { code, out, attempts } = await run(null, { env: { API_KEY: "" } });
+
+    assert.equal(attempts, 0, out);
+    assert.equal(code, 1, out);
+    assert.match(out, /API_KEY required/);
+    assert.doesNotMatch(out, /Permission error/);
+  });
+});
+
+describe("retries", () => {
+  test("keeps waiting on a 404 while the commit results are not uploaded", async () => {
+    const { code, out, attempts } = await run(null, {
+      replies: [
+        reply(404, {
+          error: "Missing git properties or no session found for commit SHA: abc123",
+        }),
+        reply(200, commit()),
+      ],
+      env: { RETRY_COUNT: "2" },
+    });
+
+    assert.equal(code, 0, out);
+    assert.equal(attempts, 2, out);
+  });
+
+  test("fails after the last retry on a 404 that is not a permission error", async () => {
+    const { code, out, attempts } = await run(null, {
+      replies: [
+        reply(404, {
+          error: "Missing git properties or no session found for commit SHA: abc123",
+        }),
+      ],
+      env: { RETRY_COUNT: "1" },
+    });
+
+    assert.equal(attempts, 2, out);
+    assert.equal(code, 1, out);
+    assert.doesNotMatch(out, /Permission error/);
+    assert.match(out, /::error::Failed: Missing git properties/);
+  });
+
+  test("retries a 503 and then succeeds", async () => {
+    const { code, out, attempts } = await run(null, {
+      replies: [reply(503, { error: "Unavailable" }), reply(200, commit())],
+      env: { RETRY_COUNT: "2" },
+    });
+
+    assert.equal(code, 0, out);
+    assert.equal(attempts, 2, out);
+    assert.match(out, /violations found/);
+  });
+
+  test("doubles the wait after each retry", async () => {
+    const start = Date.now();
+    const { code, out, attempts } = await run(null, {
+      replies: [reply(503, { error: "Unavailable" })],
+      env: { RETRY_COUNT: "2" },
+    });
+    const elapsed = Date.now() - start;
+
+    assert.equal(attempts, 3, out);
+    assert.equal(code, 1, out);
+    assert.ok(elapsed >= 2900, `elapsed ${elapsed} ms`);
+    assert.match(out, /Attempt 1 of 3 failed \(HTTP 503\)\. Retry in 1 seconds\./);
+    assert.match(out, /Attempt 2 of 3 failed \(HTTP 503\)\. Retry in 2 seconds\./);
+  });
+
+  test("waits for a longer Retry-After header", async () => {
+    const start = Date.now();
+    const { code, out, attempts } = await run(null, {
+      replies: [reply(429, { error: "Slow down" }, { "Retry-After": "2" })],
+      env: { RETRY_COUNT: "1" },
+    });
+    const elapsed = Date.now() - start;
+
+    assert.equal(attempts, 2, out);
+    assert.equal(code, 1, out);
+    assert.ok(elapsed >= 1900, `elapsed ${elapsed} ms`);
+  });
+
+  for (const status of [400, 408, 418, 500, 501, 502, 504]) {
+    test(`retries an HTTP ${status}`, async () => {
+      const { code, out, attempts } = await run(null, {
+        replies: [reply(status, { error: "x" })],
+        env: { RETRY_COUNT: "1" },
+      });
+
+      assert.equal(attempts, 2, out);
+      assert.equal(code, 1, out);
+      assert.doesNotMatch(out, /Permission error/);
+    });
+  }
+
+  test("retries a transport failure", async () => {
+    // Take a free port, then close the server so that nothing listens on it.
+    const closed = createServer();
+    await new Promise((resolve) => closed.listen(0, "127.0.0.1", resolve));
+    const { port } = closed.address();
+    await new Promise((resolve) => closed.close(resolve));
+
+    const { code, out } = await run(null, {
+      env: { SERVER_URL: `http://127.0.0.1:${port}`, RETRY_COUNT: "1" },
+    });
+
+    assert.equal(code, 1, out);
+    assert.match(out, /Attempt 1 of 2 failed \(curl exit code 7\)/);
+    assert.match(out, /::error::Failed request: /);
+  });
+
+  test("rejects a RETRY_COUNT that is not a whole number", async () => {
+    const { code, out, attempts } = await run(null, { env: { RETRY_COUNT: "abc" } });
+
+    assert.equal(attempts, 0, out);
+    assert.equal(code, 1, out);
+    assert.match(out, /RETRY_COUNT must be a whole number/);
+  });
+});
+
+describe("response body", () => {
+  test("fails with a clear error when a 200 body is not a JSON object", async () => {
+    const { code, out, attempts } = await run(null, {
+      replies: [reply(200, "<html>oops</html>")],
+    });
+
+    assert.equal(attempts, 1, out);
+    assert.equal(code, 1, out);
+    assert.match(out, /not a valid JSON object/);
+    assert.doesNotMatch(out, /parse error/);
+  });
 });
