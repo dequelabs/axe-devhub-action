@@ -16,6 +16,18 @@ Note that declaring a `permissions` block sets every scope you do not list to `n
 
 Commenting is best effort. If the token cannot write — most commonly on a pull request from a fork, where `GITHUB_TOKEN` is always read-only — the action logs a warning and carries on; the accessibility result itself is unaffected.
 
+## axe Developer Hub API key
+
+The `api_key` must belong to a user who is a member of the project. The membership can come from an individual grant or from a team grant. Any project role is enough. The user does not have to be a project admin.
+
+If the server refuses the API key, the action stops after the first attempt and shows a permission error. These responses are permission errors:
+
+- HTTP 401: the server did not accept the API key.
+- HTTP 403: the API key cannot get access to the project.
+- HTTP 404 with the message `Project not found`.
+
+The action retries all other failures `retry_count` times. The first wait is 1 second. The wait doubles after each retry, up to 10 minutes.
+
 ## Inputs
 
 | name                    | description                                                                                                              | required            | default                                                                                   |
@@ -23,7 +35,7 @@ Commenting is best effort. If the token cannot write — most commonly on a pull
 | `api_key`               | Your Axe Developer Hub API key                                                                                           | :white_check_mark:  |                                                                                           |
 | `project_id`            | The ID of your Axe Developer Hub project                                                                                 | :x:                 | Required for newer projects after December 9, 2025. Legacy projects will continue to work |
 | `server_url`            | Axe server URL                                                                                                           | :x:                 | https://axe.deque.com                                                                     |
-| `retry_count`           | Number of times to retry                                                                                                 | :x:                 | 10                                                                                        |
+| `retry_count`           | Number of times to retry a failed request. Permission errors are not retried.                                            | :x:                 | 10                                                                                        |
 | `github_token`          | Optional [PAT](https://docs.github.com/en/github/authenticating-to-github/creating-a-personal-access-token)              | :x:                 | `secrets.GITHUB_TOKEN`                                                                    |
 | `enable_a11y_threshold` | Enable the a11y threshold, which will cause the action to fail if the number of violations is greater than the threshold | :x:                 | `false`                                                                                   |
 | `commit_sha`            | Override the commit SHA to check status for                                                                              | :x:                 | github.sha                                                                                   |
