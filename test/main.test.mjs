@@ -3,26 +3,31 @@
 // Stands up a mock axe DevHub public API, points main.sh at it via SERVER_URL,
 // and asserts on what it prints and what it writes to GITHUB_OUTPUT.
 //
-// Run with `node --test test/`. No dependencies beyond Node itself.
+// Run with `node --test test/*.test.mjs`. No dependencies beyond Node itself.
 
 import assert from "node:assert/strict";
-import { spawn } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { after, before, describe, test } from "node:test";
 import { fileURLToPath } from "node:url";
 
+import { runScript, startGithubMock } from "./github-mock.mjs";
+
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const SCRIPT = join(ROOT, "main.sh");
 const SHA = "abc123";
+const ANY_FIXED_UNIX_TIME = 1700000000;
 
 // What GET /api-pub/v1/axe-watcher/gh/:sha answers with, one reply per request.
 // The last reply repeats. Replaced before each run.
 let replies = [];
 // How many requests main.sh made to that path in the current run.
 let attempts = 0;
+// Seconds the mock API adds to the shim clock on each request.
+let requestSeconds = 0;
+let shimDir;
 let server;
 let base;
 let dir;
@@ -50,7 +55,9 @@ function reply(status, body, headers = {}) {
 }
 
 /**
- * Run main.sh against the mock API. Resolves to { code, out, outputs, attempts }.
+ * Run main.sh against the mock API. Resolves to { code, out, outputs, attempts, waits },
+ * where `waits` are the seconds main.sh asked `sleep` for. `options.requestSeconds` makes
+ * every request take that many seconds on the shim clock.
  * `response` is the body of a 200 reply. Set `options.replies` to send other replies,
  * and `options.env` to change the environment of main.sh.
  */
@@ -58,9 +65,11 @@ async function run(response, options = {}) {
   replies = options.replies ?? [reply(200, response)];
   attempts = 0;
   const outputFile = join(dir, `output-${Math.random().toString(36).slice(2)}`);
+  shimDir = makeShims();
+  requestSeconds = options.requestSeconds ?? 0;
 
   const childEnv = {
-    PATH: process.env.PATH,
+    PATH: `${shimDir}:${process.env.PATH}`,
     HOME: process.env.HOME ?? "/tmp",
     API_KEY: "test-key",
     SERVER_URL: base,
@@ -72,22 +81,7 @@ async function run(response, options = {}) {
     ...options.env,
   };
 
-  const { code, out } = await new Promise((resolve, reject) => {
-    const child = spawn("bash", [SCRIPT], { env: childEnv });
-    let out = "";
-    const timer = setTimeout(() => {
-      child.kill("SIGKILL");
-      reject(new Error("main.sh timed out"));
-    }, 30_000);
-
-    child.stdout.on("data", (d) => (out += d));
-    child.stderr.on("data", (d) => (out += d));
-    child.on("error", reject);
-    child.on("close", (code) => {
-      clearTimeout(timer);
-      resolve({ code, out });
-    });
-  });
+  const { code, out } = await runScript(SCRIPT, childEnv);
 
   const outputs = {};
   const written = existsSync(outputFile) ? readFileSync(outputFile, "utf8") : "";
@@ -95,7 +89,52 @@ async function run(response, options = {}) {
     const at = line.indexOf("=");
     if (at > 0) outputs[line.slice(0, at)] = line.slice(at + 1);
   }
-  return { code, out, outputs, attempts };
+  const sleepsFile = join(shimDir, "sleeps");
+  const waits = existsSync(sleepsFile)
+    ? readFileSync(sleepsFile, "utf8").split("\n").filter(Boolean).map(Number)
+    : [];
+  return { code, out, outputs, attempts, waits };
+}
+
+/**
+ * Make a directory with `sleep` and `date` shims that main.sh finds first on PATH.
+ * `sleep` records its argument in `sleeps` and moves the fake clock in `clock` forward
+ * without waiting. `date +%s` prints that clock; any other `date` call runs the real one.
+ */
+function makeShims() {
+  const shims = mkdtempSync(join(dir, "shims-"));
+  writeFileSync(join(shims, "clock"), `${ANY_FIXED_UNIX_TIME}\n`);
+  writeFileSync(
+    join(shims, "sleep"),
+    `#!/bin/bash
+echo "$1" >> "${shims}/sleeps"
+echo $(( $(cat "${shims}/clock") + $1 )) > "${shims}/clock"
+`,
+    { mode: 0o755 },
+  );
+  writeFileSync(
+    join(shims, "date"),
+    `#!/bin/bash
+if [ "$#" -eq 1 ] && [ "$1" = "+%s" ]; then
+  cat "${shims}/clock"
+else
+  exec /bin/date "$@"
+fi
+`,
+    { mode: 0o755 },
+  );
+  return shims;
+}
+
+/** A reply for a commit whose results are not uploaded yet. */
+function notReady() {
+  return reply(404, {
+    error: "Missing git properties or no session found for commit SHA: abc123",
+  });
+}
+
+function assertNoInjectedWarning(out) {
+  assert.ok(!out.split("\n").some((line) => line.startsWith("::warning::injected")), out);
 }
 
 before(async () => {
@@ -105,6 +144,10 @@ before(async () => {
     if (req.url.startsWith(`/api-pub/v1/axe-watcher/gh/${SHA}`)) {
       ({ status, body, headers } = replies[Math.min(attempts, replies.length - 1)]);
       attempts += 1;
+      if (requestSeconds > 0) {
+        const clockFile = join(shimDir, "clock");
+        writeFileSync(clockFile, `${Number(readFileSync(clockFile, "utf8")) + requestSeconds}\n`);
+      }
     }
     const payload = typeof body === "string" ? body : JSON.stringify(body);
     res.writeHead(status, {
@@ -229,6 +272,19 @@ describe("permission refusals", () => {
     assert.match(out, /User does not have access to this project/);
   });
 
+  test("keeps a 403 server message that starts a workflow command inside the error line", async () => {
+    const { code, out } = await run(null, {
+      replies: [reply(403, { error: "no\r\n::warning::injected" })],
+      env: { RETRY_COUNT: "3" },
+    });
+
+    assert.equal(code, 1, out);
+    const errors = out.split("\n").filter((line) => line.startsWith("::error::"));
+    assert.equal(errors.length, 1, out);
+    assert.match(errors[0], /^::error::Permission error \(HTTP 403\).*::warning::injected/);
+    assertNoInjectedWarning(out);
+  });
+
   test("fails on the first attempt with a permission error on a 401", async () => {
     const { code, out, attempts } = await run(null, {
       replies: [reply(401, { error: "Unauthorized" })],
@@ -308,31 +364,48 @@ describe("retries", () => {
   });
 
   test("doubles the wait after each retry", async () => {
-    const start = Date.now();
-    const { code, out, attempts } = await run(null, {
+    const { code, out, attempts, waits } = await run(null, {
       replies: [reply(503, { error: "Unavailable" })],
       env: { RETRY_COUNT: "2" },
     });
-    const elapsed = Date.now() - start;
 
     assert.equal(attempts, 3, out);
     assert.equal(code, 1, out);
-    assert.ok(elapsed >= 2900, `elapsed ${elapsed} ms`);
-    assert.match(out, /Attempt 1 of 3 failed \(HTTP 503\)\. Retry in 1 seconds\./);
-    assert.match(out, /Attempt 2 of 3 failed \(HTTP 503\)\. Retry in 2 seconds\./);
+    assert.deepEqual(waits, [2, 4]);
+    assert.match(out, /Attempt 1 failed \(HTTP 503\)\. Retry in 2 seconds\./);
+    assert.match(out, /Attempt 2 failed \(HTTP 503\)\. Retry in 4 seconds\./);
   });
 
-  test("waits for a longer Retry-After header", async () => {
-    const start = Date.now();
-    const { code, out, attempts } = await run(null, {
-      replies: [reply(429, { error: "Slow down" }, { "Retry-After": "2" })],
-      env: { RETRY_COUNT: "1" },
-    });
-    const elapsed = Date.now() - start;
+  for (const status of [408, 500, 502, 503, 504]) {
+    test(`waits for a longer Retry-After header on an HTTP ${status}`, async () => {
+      const { code, out, waits } = await run(null, {
+        replies: [
+          reply(status, { error: "Unavailable" }, { "Retry-After": "5" }),
+          reply(200, commit()),
+        ],
+        env: { RETRY_COUNT: "10" },
+      });
 
-    assert.equal(attempts, 2, out);
-    assert.equal(code, 1, out);
-    assert.ok(elapsed >= 1900, `elapsed ${elapsed} ms`);
+      assert.equal(code, 0, out);
+      assert.deepEqual(waits, [5]);
+    });
+  }
+
+  test("ignores Retry-After on a not-ready 404", async () => {
+    const { code, out, waits } = await run(null, {
+      replies: [
+        reply(
+          404,
+          { error: "Missing git properties or no session found for commit SHA: abc123" },
+          { "Retry-After": "30" },
+        ),
+        reply(200, commit()),
+      ],
+      env: { RETRY_COUNT: "10" },
+    });
+
+    assert.equal(code, 0, out);
+    assert.deepEqual(waits, [2]);
   });
 
   for (const status of [400, 408, 418, 500, 501, 502, 504]) {
@@ -360,8 +433,94 @@ describe("retries", () => {
     });
 
     assert.equal(code, 1, out);
-    assert.match(out, /Attempt 1 of 2 failed \(curl exit code 7\)/);
-    assert.match(out, /::error::Failed request: /);
+    assert.match(out, /Attempt 1 failed \(curl exit code 7\)/);
+    assert.match(out, /::error::Failed request: curl: \(7\)/);
+  });
+
+  test("shows the status and the body of a failed request whose body is not JSON", async () => {
+    const { code, out } = await run(null, {
+      replies: [reply(502, "<html>Bad gateway</html>")],
+      env: { RETRY_COUNT: "0" },
+    });
+
+    assert.equal(code, 1, out);
+    assert.match(out, /^::error::Failed request: HTTP 502 <html>Bad gateway<\/html>$/m);
+  });
+
+  test("keeps server text that starts a workflow command inside the error line", async () => {
+    const { code, out } = await run(null, {
+      replies: [reply(502, "oops\n::warning::injected")],
+      env: { RETRY_COUNT: "0" },
+    });
+
+    assert.equal(code, 1, out);
+    assert.match(out, /^::error::Failed request: HTTP 502 oops ::warning::injected$/m);
+    assertNoInjectedWarning(out);
+  });
+
+  test("keeps a server message that starts a workflow command inside the error line", async () => {
+    const { code, out } = await run(null, {
+      replies: [reply(503, { error: "busy\r\n::warning::injected" })],
+      env: { RETRY_COUNT: "0" },
+    });
+
+    assert.equal(code, 1, out);
+    assert.match(out, /^::error::Failed: busy {2}::warning::injected$/m);
+    assertNoInjectedWarning(out);
+  });
+
+  test("cuts a long body in the error line to 200 characters", async () => {
+    const { code, out } = await run(null, {
+      replies: [reply(502, "x".repeat(300))],
+      env: { RETRY_COUNT: "0" },
+    });
+
+    assert.equal(code, 1, out);
+    assert.match(out, /^::error::Failed request: HTTP 502 x{200}$/m);
+  });
+
+  test("encodes a percent sign in server text so the runner does not decode it", async () => {
+    const { code, out } = await run(null, {
+      replies: [reply(502, "100%0A done")],
+      env: { RETRY_COUNT: "0" },
+    });
+
+    assert.equal(code, 1, out);
+    assert.match(out, /^::error::Failed request: HTTP 502 100%250A done$/m);
+  });
+
+  test("cuts a long server message in the error line to 200 characters", async () => {
+    const { code, out } = await run(null, {
+      replies: [reply(503, { error: "x".repeat(300) })],
+      env: { RETRY_COUNT: "0" },
+    });
+
+    assert.equal(code, 1, out);
+    assert.match(out, /^::error::Failed: x{200}$/m);
+  });
+
+  test("reports the last failure when the server message changes between retries", async () => {
+    const { code, out } = await run(null, {
+      replies: [reply(502, { error: "first" }), reply(503, { error: "second" })],
+      env: { RETRY_COUNT: "1" },
+    });
+
+    assert.equal(code, 1, out);
+    assert.match(out, /^::error::Failed: second$/m);
+    assert.doesNotMatch(out, /^::error::.*first/m);
+  });
+
+  test("waits the ladder value when a 503 asks for a shorter Retry-After", async () => {
+    const { code, out, waits } = await run(null, {
+      replies: [
+        reply(503, { error: "Unavailable" }, { "Retry-After": "1" }),
+        reply(200, commit()),
+      ],
+      env: { RETRY_COUNT: "10" },
+    });
+
+    assert.equal(code, 0, out);
+    assert.deepEqual(waits, [2]);
   });
 
   test("rejects a RETRY_COUNT that is not a whole number", async () => {
@@ -370,6 +529,344 @@ describe("retries", () => {
     assert.equal(attempts, 0, out);
     assert.equal(code, 1, out);
     assert.match(out, /RETRY_COUNT must be a whole number/);
+  });
+
+  test("reads a RETRY_COUNT with a leading zero as a decimal number", async () => {
+    const { code, out } = await run(commit(), { env: { RETRY_COUNT: "08" } });
+
+    assert.equal(code, 0, out);
+    assert.match(out, /for about 255 seconds \(retry_count 8\)$/m);
+  });
+
+  test("rejects a RETRY_COUNT longer than 9 digits", async () => {
+    const { code, out, attempts } = await run(commit(), { env: { RETRY_COUNT: "1234567890" } });
+
+    assert.equal(attempts, 0, out);
+    assert.equal(code, 1, out);
+    assert.match(out, /RETRY_COUNT must be at most 9 digits long/);
+  });
+});
+
+describe("polling budget", () => {
+  test("polls a not-ready 404 at most 15 s apart and succeeds", async () => {
+    const { code, waits, attempts } = await run(null, {
+      replies: [...Array(5).fill(notReady()), reply(200, commit())],
+      env: { RETRY_COUNT: "10" },
+    });
+
+    assert.equal(code, 0);
+    assert.equal(attempts, 6);
+    assert.deepEqual(waits, [2, 4, 8, 15, 15]);
+  });
+
+  test("stops at the budget for RETRY_COUNT 6", async () => {
+    const { code, out, waits } = await run(null, {
+      replies: [notReady()],
+      env: { RETRY_COUNT: "6" },
+    });
+
+    assert.equal(code, 1);
+    assert.deepEqual(waits, [2, 4, 8, 15, 15, 15]);
+    assert.match(out, /::error::Failed: Missing git properties/);
+    assert.doesNotMatch(out, /throttl/i);
+  });
+
+  test("keeps retry_count retries when each request takes a second", async () => {
+    const { attempts, waits } = await run(null, {
+      replies: [notReady()],
+      env: { RETRY_COUNT: "1" },
+      requestSeconds: 1,
+    });
+
+    assert.equal(attempts, 2);
+    assert.deepEqual(waits, [2]);
+  });
+
+  const budgets = [
+    [0, 1, []],
+    [1, 2, [2]],
+    [2, 3, [2, 4]],
+    [5, 6, [2, 4, 8, 15, 15]],
+    [6, 7, [2, 4, 8, 15, 15, 15]],
+    [10, 71, [2, 4, 8, ...Array(67).fill(15)]],
+  ];
+  for (const [retryCount, expectedAttempts, expectedWaits] of budgets) {
+    test(`makes at least RETRY_COUNT retries and waits while the next wait fits the budget, for RETRY_COUNT ${retryCount}`, async () => {
+      const { attempts, waits } = await run(null, {
+        replies: [notReady()],
+        env: { RETRY_COUNT: String(retryCount) },
+      });
+
+      assert.equal(attempts, expectedAttempts);
+      assert.deepEqual(waits, expectedWaits);
+    });
+  }
+
+  test("logs the budget at the start", async () => {
+    const { code, out } = await run(commit(), { env: { RETRY_COUNT: "5" } });
+
+    assert.equal(code, 0, out);
+    assert.match(out, /for about 31 seconds \(retry_count 5\)$/m);
+  });
+
+  test("logs the budget for RETRY_COUNT 12", async () => {
+    const { code, out } = await run(commit(), { env: { RETRY_COUNT: "12" } });
+
+    assert.equal(code, 0, out);
+    assert.match(out, /for about 2223 seconds \(retry_count 12\)$/m);
+  });
+
+  test("computes the budget for a very large RETRY_COUNT", async () => {
+    const { code, out } = await run(commit(), { env: { RETRY_COUNT: "100000000" } });
+
+    assert.equal(code, 0, out);
+    assert.match(out, /for about 59999995023 seconds \(retry_count 100000000\)$/m);
+  });
+});
+
+/** A 429 as the API sends it, with the Retry-After interval in whole seconds. */
+function throttled(seconds) {
+  return reply(
+    429,
+    { error: "Too many requests. Retry after the Retry-After interval." },
+    { "Retry-After": String(seconds), "Cache-Control": "no-store" },
+  );
+}
+
+describe("throttling", () => {
+  test("waits at least Retry-After and less than twice it, then succeeds", async () => {
+    const { code, waits, outputs } = await run(null, {
+      replies: [throttled(60), reply(200, commit())],
+      env: { RETRY_COUNT: "10" },
+    });
+
+    assert.equal(code, 0);
+    assert.equal(waits.length, 1);
+    assert.ok(waits[0] >= 60 && waits[0] < 120, `wait ${waits[0]}`);
+    assert.equal(outputs.issue_count, "0");
+  });
+
+  test("stops after at most 300 s of throttling with a plain error", async () => {
+    const { code, out, waits, outputs } = await run(null, {
+      replies: [throttled(60)],
+      env: { RETRY_COUNT: "10" },
+    });
+
+    assert.equal(code, 1);
+    assert.ok(waits.length >= 2, `waits ${waits}`);
+    assert.ok(waits.reduce((a, b) => a + b, 0) <= 300);
+    for (const w of waits) assert.ok(w >= 60 && w < 120, `wait ${w}`);
+    assert.match(out, /::error::.*axe Developer Hub API.*throttl/i);
+    const waited = waits.reduce((a, b) => a + b, 0);
+    assert.match(out, new RegExp(`waited ${waited} seconds`));
+    assert.doesNotMatch(out, /edge/i);
+    assert.doesNotMatch(out, /Retry after the Retry-After interval/);
+    assert.equal(outputs.issue_count, undefined);
+  });
+
+  test("spreads the waits", async () => {
+    const runs = [];
+    for (let i = 0; i < 3; i++) {
+      runs.push(
+        (await run(null, { replies: [throttled(60)], env: { RETRY_COUNT: "10" } })).waits,
+      );
+    }
+
+    const identical = runs.every((waits) => waits.join() === runs[0].join());
+    const distinct = new Set(runs.flat());
+    assert.ok(!identical || distinct.size > 1, `waits ${JSON.stringify(runs)}`);
+  });
+
+  test("falls back to its own base when Retry-After is not whole seconds", async () => {
+    const { code, waits } = await run(null, {
+      replies: [
+        reply(
+          429,
+          { error: "Too many requests." },
+          { "Retry-After": "Wed, 21 Oct 2026 07:28:00 GMT" },
+        ),
+        reply(200, commit()),
+      ],
+      env: { RETRY_COUNT: "10" },
+    });
+
+    assert.equal(code, 0);
+    assert.equal(waits.length, 1);
+    assert.ok(waits[0] >= 2 && waits[0] < 4, `wait ${waits[0]}`);
+  });
+
+  test("resets the refusal count after a non-429 reply and doubles the base on each refusal", async () => {
+    const dated = () =>
+      reply(
+        429,
+        { error: "Too many requests." },
+        { "Retry-After": "Wed, 21 Oct 2026 07:28:00 GMT" },
+      );
+    const { code, waits } = await run(null, {
+      replies: [dated(), dated(), notReady(), dated(), reply(200, commit())],
+      env: { RETRY_COUNT: "10" },
+    });
+
+    assert.equal(code, 0);
+    assert.equal(waits.length, 4);
+    assert.ok(waits[0] >= 2 && waits[0] < 4, `wait ${waits[0]}`);
+    assert.ok(waits[1] >= 4 && waits[1] < 8, `wait ${waits[1]}`);
+    assert.equal(waits[2], 8);
+    assert.ok(waits[3] >= 2 && waits[3] < 4, `wait ${waits[3]}`);
+  });
+
+  test("stops at once when Retry-After does not fit the cap", async () => {
+    const { code, out, waits } = await run(null, {
+      replies: [throttled(400)],
+      env: { RETRY_COUNT: "10" },
+    });
+
+    assert.equal(code, 1);
+    assert.deepEqual(waits, []);
+    assert.match(out, /::error::.*axe Developer Hub API.*throttl/i);
+  });
+
+  test("prints the throttling error when Retry-After does not fit the cap after a not-ready answer", async () => {
+    const { code, out } = await run(null, {
+      replies: [notReady(), throttled(400)],
+      env: { RETRY_COUNT: "1" },
+    });
+
+    assert.equal(code, 1, out);
+    assert.match(out, /::error::.*axe Developer Hub API.*throttl/i);
+    assert.doesNotMatch(out, /::error::Failed/);
+  });
+
+  test("prints the last failure that was not a 429 when the budget runs out on a 429", async () => {
+    const { code, out } = await run(null, {
+      replies: [reply(502, "<html>Bad gateway</html>"), throttled(60)],
+      env: { RETRY_COUNT: "1" },
+    });
+
+    assert.equal(code, 1, out);
+    assert.match(out, /^::error::Failed request: HTTP 502 <html>Bad gateway<\/html>$/m);
+    assert.doesNotMatch(out, /::error::.*throttl/i);
+  });
+
+  test("stops at once on a 429 when the budget is zero", async () => {
+    const { code, out, waits } = await run(null, {
+      replies: [throttled(60)],
+      env: { RETRY_COUNT: "0" },
+    });
+
+    assert.equal(code, 1);
+    assert.deepEqual(waits, []);
+    assert.match(out, /::error::.*axe Developer Hub API.*throttl/i);
+    assert.doesNotMatch(out, /Failed/);
+  });
+
+  test("prints the not-ready error when the budget runs out on a 429 after not-ready answers", async () => {
+    const { code, out, attempts, waits } = await run(null, {
+      replies: [...Array(4).fill(notReady()), throttled(60)],
+      env: { RETRY_COUNT: "5" },
+    });
+
+    assert.equal(code, 1);
+    assert.equal(attempts, 6);
+    assert.equal(waits.length, 5);
+    assert.deepEqual(waits.slice(0, 4), [2, 4, 8, 15]);
+    assert.ok(waits[4] >= 60 && waits[4] < 120, `wait ${waits[4]}`);
+    assert.match(out, /^::error::Failed: Missing git properties/m);
+    assert.doesNotMatch(out, /::error::.*throttl/i);
+  });
+
+  test("waits on a 429 inside the budget after the retries are used up", async () => {
+    const { code, out, attempts, waits } = await run(null, {
+      replies: [...Array(10).fill(notReady()), throttled(60), reply(200, commit())],
+      env: { RETRY_COUNT: "10" },
+    });
+
+    assert.equal(code, 0, out);
+    assert.equal(attempts, 12);
+    assert.equal(waits.length, 11);
+    assert.ok(waits[10] >= 60 && waits[10] < 120, `wait ${waits[10]}`);
+  });
+
+  test("does not wait on a 429 that does not fit the budget after the retries are used up", async () => {
+    const { code, out, attempts, waits } = await run(null, {
+      replies: [...Array(6).fill(notReady()), throttled(60)],
+      env: { RETRY_COUNT: "6" },
+    });
+
+    assert.equal(code, 1);
+    assert.equal(attempts, 7);
+    assert.deepEqual(waits, [2, 4, 8, 15, 15, 15]);
+    assert.match(out, /^::error::Failed: Missing git properties/m);
+    assert.doesNotMatch(out, /::error::.*throttl/i);
+  });
+
+  test("follows each rule in a mixed run", async () => {
+    const { code, waits } = await run(null, {
+      replies: [notReady(), throttled(5), notReady(), reply(200, commit())],
+      env: { RETRY_COUNT: "10" },
+    });
+
+    assert.equal(code, 0);
+    assert.equal(waits.length, 3);
+    assert.equal(waits[0], 2);
+    assert.ok(waits[1] >= 5 && waits[1] < 10, `wait ${waits[1]}`);
+    assert.equal(waits[2], 8);
+  });
+});
+
+describe("comment step after main.sh", () => {
+  let github;
+
+  before(async () => {
+    github = await startGithubMock();
+  });
+
+  after(() => github?.close());
+
+  const kinds = () => github.calls.map(([kind]) => kind);
+
+  /** Mirrors the environment that action.yml gives the upsert step when main.sh fails. */
+  async function upsertComment(outputs) {
+    github.reset({ pages: [[]] });
+    return runScript(join(ROOT, "pr-comment.sh"), {
+      PATH: process.env.PATH,
+      HOME: process.env.HOME ?? "/tmp",
+      MODE: "upsert",
+      GITHUB_TOKEN: "test-token",
+      PR_NUMBER: "42",
+      ENABLE_A11Y_THRESHOLD: "false",
+      ISSUE_COUNT: outputs.issue_count ?? "",
+      ISSUES_OVER_A11Y_THRESHOLD: outputs.issues_over_a11y_threshold ?? "",
+      AXE_URL: outputs.axe_url ?? "",
+      GITHUB_API_URL: github.base,
+      GITHUB_GRAPHQL_URL: `${github.base}/graphql`,
+      GITHUB_REPOSITORY: "dequelabs/axe-devhub-action",
+    });
+  }
+
+  test("posts no comment after a throttled run", async () => {
+    const main = await run(null, { replies: [throttled(60)], env: { RETRY_COUNT: "10" } });
+    assert.equal(main.code, 1, main.out);
+
+    const { code, out } = await upsertComment(main.outputs);
+
+    assert.equal(code, 0, out);
+    assert.deepEqual(
+      kinds().filter((kind) => kind === "create" || kind === "update"),
+      [],
+    );
+  });
+
+  test("posts a comment after a run that found violations", async () => {
+    const main = await run(commit({ last_run_violation_count: 3 }), {
+      env: { RETRY_COUNT: "10" },
+    });
+    assert.equal(main.code, 1, main.out);
+
+    const { code, out } = await upsertComment(main.outputs);
+
+    assert.equal(code, 0, out);
+    assert.deepEqual(kinds(), ["list_comments", "create", "create_path"]);
   });
 });
 
@@ -383,5 +880,15 @@ describe("response body", () => {
     assert.equal(code, 1, out);
     assert.match(out, /not a valid JSON object/);
     assert.doesNotMatch(out, /parse error/);
+  });
+
+  test("keeps a 200 body that starts a workflow command inside the error line", async () => {
+    const { code, out } = await run(null, {
+      replies: [reply(200, "oops\n::warning::injected")],
+    });
+
+    assert.equal(code, 1, out);
+    assert.match(out, /^::error::The server response is not a valid JSON object\. Response: oops ::warning::injected$/m);
+    assertNoInjectedWarning(out);
   });
 });

@@ -13,7 +13,7 @@ inputs:
     required: false
     default: https://axe.deque.com
   retry_count:
-    description: number of times to attempt fetching the commit status
+    description: how long to keep retrying a failed request other than a permission error, as the sum of this many waits of 1, 2, 4 ... seconds (each at most 600), which is about 17 minutes for the default of 10; the action never makes fewer than this many retries in total, unless the 5-minute limit on HTTP 429 throttling stops it first, and retries after HTTP 429 count toward that number
     required: false
     default: 10
   enable_a11y_threshold:
