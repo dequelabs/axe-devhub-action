@@ -2,6 +2,13 @@
 
 set -e
 
+readonly FIRST_RETRY_WAIT_SECONDS=2
+readonly MAX_RETRY_WAIT_SECONDS=15
+readonly FIRST_THROTTLE_WAIT_SECONDS=2
+readonly MAX_THROTTLED_SECONDS=300
+readonly MAX_BUDGET_WAIT_SECONDS=600
+readonly MAX_SERVER_TEXT_LENGTH=200
+
 throw() {
   echo "Error: $*"
   exit 1
@@ -16,12 +23,26 @@ SERVER_URL="${SERVER_URL%/}"
 
 RETRY_COUNT=${RETRY_COUNT:-10}
 [[ "$RETRY_COUNT" =~ ^[0-9]+$ ]] || throw "RETRY_COUNT must be a whole number"
+[ "${#RETRY_COUNT}" -le 9 ] || throw "RETRY_COUNT must be at most 9 digits long"
+RETRY_COUNT=$((10#$RETRY_COUNT))
+
+# retry_count is documented as the time of this many waits of 1, 2, 4 ... seconds, each at most 600.
+Budget=0
+BudgetWait=1
+for ((Retry = 0; Retry < RETRY_COUNT; Retry++)); do
+  if [ "$BudgetWait" -ge "$MAX_BUDGET_WAIT_SECONDS" ]; then
+    Budget=$((Budget + (RETRY_COUNT - Retry) * MAX_BUDGET_WAIT_SECONDS))
+    break
+  fi
+  Budget=$((Budget + BudgetWait))
+  BudgetWait=$((BudgetWait * 2))
+done
 
 if [ -z "$PROJECT_ID" ]; then
   echo "::warning::'project_id' has not been provided. 'project_id' will become required for newer projects after December 9, 2025. For legacy projects this will continue to work as is. It is recommended to supply your 'project_id'".
 fi
 
-echo "Attempting to get status for commit $COMMIT_SHA from $SERVER_URL${PROJECT_ID:+ for the project $PROJECT_ID} with $RETRY_COUNT retries"
+echo "Attempting to get status for commit $COMMIT_SHA from $SERVER_URL${PROJECT_ID:+ for the project $PROJECT_ID} for about $Budget seconds (retry_count $RETRY_COUNT)"
 
 URL="$SERVER_URL/api-pub/v1/axe-watcher/gh/$COMMIT_SHA"
 if [ -n "$PROJECT_ID" ]; then
@@ -38,6 +59,15 @@ server_message() {
   echo "$1" | grep -o '{.*}' | head -1 | jq -r '.error // .message // empty' 2>/dev/null || true
 }
 
+# The runner reads every output line that starts with "::" as a workflow command and decodes % escapes in it,
+# so server text must stay on the error line with its % encoded. Cut before encoding, so that no escape is split.
+short_one_line() {
+  local text
+  text=$(printf '%s' "$1" | tr '\r\n' '  ')
+  text="${text:0:MAX_SERVER_TEXT_LENGTH}"
+  printf '%s' "${text//%/%25}"
+}
+
 # Print the Retry-After header of the last response when it is whole seconds.
 retry_after_seconds() {
   local value
@@ -46,12 +76,54 @@ retry_after_seconds() {
   return 0
 }
 
+StartedAt=$(date +%s)
+Attempt=0
+Response=""
+
+fits_budget() {
+  [ "$(($(date +%s) + $1))" -le "$((StartedAt + Budget))" ]
+}
+
+# Time spent in requests and whole-second rounding must not cost a retry that retry_count promises.
+can_wait() {
+  [ "$((Attempt - 1))" -lt "$RETRY_COUNT" ] || fits_budget "$1"
+}
+
+Refusals=0
+ThrottledSeconds=0
+LastFailure=""
+
+# The random part keeps jobs that were refused together from retrying together.
+next_throttle_wait() {
+  local refusals=$1
+  local base=$((FIRST_THROTTLE_WAIT_SECONDS << (refusals - 1)))
+  local retry_after
+  retry_after=$(retry_after_seconds)
+  if [ -n "$retry_after" ] && [ "$((10#$retry_after))" -gt "$base" ]; then
+    base=$((10#$retry_after))
+  fi
+  echo "$((base + base * RANDOM / 32768))"
+}
+
+next_retry_wait() {
+  local attempt=$1
+  local step
+  local wait=$FIRST_RETRY_WAIT_SECONDS
+  for ((step = 1; step < attempt && wait < MAX_RETRY_WAIT_SECONDS; step++)); do
+    wait=$((wait * 2))
+  done
+  echo "$((wait > MAX_RETRY_WAIT_SECONDS ? MAX_RETRY_WAIT_SECONDS : wait))"
+}
+
+fail_throttled() {
+  echo "::error::The axe Developer Hub API throttled the requests (HTTP 429). The action waited $ThrottledSeconds seconds and stopped. Limits apply per source IP address, so other jobs on the same network count too. Re-run the job later."
+  exit 1
+}
+
 # One curl call per attempt, so that permission errors can fail at once.
 # curl has no option to retry some HTTP statuses and not others.
-TotalAttempts=$((RETRY_COUNT + 1))
-Backoff=1
-Response=""
-for ((Attempt = 1; Attempt <= TotalAttempts; Attempt++)); do
+while true; do
+  Attempt=$((Attempt + 1))
   if Output=$(curl \
       --silent \
       --show-error \
@@ -76,7 +148,7 @@ for ((Attempt = 1; Attempt <= TotalAttempts; Attempt++)); do
       Response="$Body"
       break
     fi
-    ErrorMessage=$(server_message "$Body")
+    ErrorMessage=$(short_one_line "$(server_message "$Body")")
 
     # A 404 is a permission error only when the server says "Project not found":
     # the project does not exist for this API key. Every other 404 is retried,
@@ -97,35 +169,57 @@ for ((Attempt = 1; Attempt <= TotalAttempts; Attempt++)); do
     Reason="curl exit code $CurlExit"
   fi
 
-  if [ "$Attempt" -eq "$TotalAttempts" ]; then
-    if [ -n "$ErrorMessage" ]; then
-      echo "::error::Failed: $ErrorMessage"
-    elif [ "$CurlExit" -eq 0 ]; then
-      echo "::error::Failed request: HTTP $Status $Body"
-    else
-      echo "::error::Failed request: $(cat "$StderrFile")"
+  if [ "$Status" = "429" ]; then
+    Refusals=$((Refusals + 1))
+    Wait=$(next_throttle_wait "$Refusals")
+    if [ "$((ThrottledSeconds + Wait))" -gt "$MAX_THROTTLED_SECONDS" ]; then
+      fail_throttled
     fi
-    exit 1
+    # When the time runs out on a 429, the last failure that was not a 429 says why the results are missing.
+    if ! can_wait "$Wait"; then
+      if [ -n "$LastFailure" ]; then
+        echo "::error::$LastFailure"
+        exit 1
+      fi
+      fail_throttled
+    fi
+    ThrottledSeconds=$((ThrottledSeconds + Wait))
+    echo "Attempt $Attempt was throttled (HTTP 429). Retry in $Wait seconds."
+    sleep "$Wait"
+    continue
   fi
+  Refusals=0
 
-  # Same waits as curl --retry: 1 second, doubled after each retry, at most 600 seconds.
+  Wait=$(next_retry_wait "$Attempt")
   # Like curl, use a longer Retry-After for the statuses that mean "try again later".
-  Wait=$Backoff
   case "$Status" in
-    408 | 429 | 500 | 502 | 503 | 504)
+    408 | 500 | 502 | 503 | 504)
       RetryAfter=$(retry_after_seconds)
       if [ -n "$RetryAfter" ] && [ "$((10#$RetryAfter))" -gt "$Wait" ]; then
         Wait=$((10#$RetryAfter))
       fi
       ;;
   esac
-  echo "Attempt $Attempt of $TotalAttempts failed ($Reason). Retry in $Wait seconds."
+
+  if [ -n "$ErrorMessage" ]; then
+    LastFailure="Failed: $ErrorMessage"
+  elif [ "$CurlExit" -eq 0 ]; then
+    LastFailure="Failed request: HTTP $Status $(short_one_line "$Body")"
+  else
+    LastFailure="Failed request: $(short_one_line "$(cat "$StderrFile")")"
+  fi
+
+  if ! can_wait "$Wait"; then
+    echo "::error::$LastFailure"
+    exit 1
+  fi
+
+  echo "Attempt $Attempt failed ($Reason). Retry in $Wait seconds."
   sleep "$Wait"
-  Backoff=$((Backoff * 2 > 600 ? 600 : Backoff * 2))
 done
 
 if ! echo "$Response" | jq -e 'type == "object"' >/dev/null 2>&1; then
-  echo "::error::The server response is not a valid JSON object. Response: ${Response:0:200}"
+  echo "::error::The server response is not a valid JSON object. Response: $(short_one_line "$Response")"
   exit 1
 fi
 
