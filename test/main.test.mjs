@@ -659,7 +659,7 @@ describe("throttling", () => {
     assert.match(out, /::error::.*axe Developer Hub API.*throttl/i);
     const waited = waits.reduce((a, b) => a + b, 0);
     assert.match(out, new RegExp(`waited ${waited} seconds`));
-    assert.doesNotMatch(out, /edge/i);
+    assert.match(out, /stopped\. Re-run the job later\.$/m);
     assert.doesNotMatch(out, /Retry after the Retry-After interval/);
     assert.equal(outputs.issue_count, undefined);
   });

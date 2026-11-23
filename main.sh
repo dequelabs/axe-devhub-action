@@ -116,7 +116,7 @@ next_retry_wait() {
 }
 
 fail_throttled() {
-  echo "::error::The axe Developer Hub API throttled the requests (HTTP 429). The action waited $ThrottledSeconds seconds and stopped. Limits apply per source IP address, so other jobs on the same network count too. Re-run the job later."
+  echo "::error::The axe Developer Hub API throttled the requests (HTTP 429). The action waited $ThrottledSeconds seconds and stopped. Re-run the job later."
   exit 1
 }
 
