@@ -7,14 +7,14 @@
 // cannot reach cheaply: an already-collapsed comment, a comment written by
 // someone else, pagination, and a read-only token.
 //
-// Run with `node --test test/`. No dependencies beyond Node itself.
+// Run with `node --test test/*.test.mjs`. No dependencies beyond Node itself.
 
 import assert from "node:assert/strict";
-import { spawn } from "node:child_process";
-import { createServer } from "node:http";
 import { dirname, join } from "node:path";
 import { after, before, describe, test } from "node:test";
 import { fileURLToPath } from "node:url";
+
+import { runScript, startGithubMock } from "./github-mock.mjs";
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
 const SCRIPT = join(ROOT, "pr-comment.sh");
@@ -22,106 +22,7 @@ const MARKER = "<!-- Sticky Pull Request Commentaxe-devhub -->";
 const REPO = "dequelabs/axe-devhub-action";
 const BOT = "github-actions";
 
-// What the mock API should answer with, per run. Replaced before each one.
-let state = {};
-// Every request the script made, in order.
-let calls = [];
-let server;
-let base;
-
-function send(res, status, payload) {
-  const body = JSON.stringify(payload);
-  res.writeHead(status, {
-    "Content-Type": "application/json",
-    "Content-Length": Buffer.byteLength(body),
-  });
-  res.end(body);
-}
-
-function handleGraphql(res, body) {
-  const query = body.query ?? "";
-  const variables = body.variables ?? {};
-
-  if (query.includes("minimizeComment")) {
-    calls.push(["minimize", variables]);
-    const [status, payload] = state.minimize ?? [
-      200,
-      { data: { minimizeComment: { clientMutationId: null } } },
-    ];
-    return send(res, status, payload);
-  }
-
-  if (query.includes("updateIssueComment")) {
-    calls.push(["update", variables]);
-    const [status, payload] = state.update ?? [
-      200,
-      { data: { updateIssueComment: { issueComment: { id: variables.id } } } },
-    ];
-    return send(res, status, payload);
-  }
-
-  if (query.includes("comments(first: 100")) {
-    calls.push(["list_comments", variables]);
-    if (state.list_comments) {
-      const [status, payload] = state.list_comments;
-      return send(res, status, payload);
-    }
-    // Serve one page per call, in order, so pagination is exercised.
-    const pages = state.pages ?? [[]];
-    const seen = calls.filter(([kind]) => kind === "list_comments").length - 1;
-    const index = Math.min(seen, pages.length - 1);
-    return send(res, 200, {
-      data: {
-        viewer: { login: `${BOT}[bot]` },
-        repository: {
-          pullRequest: {
-            comments: {
-              nodes: pages[index],
-              pageInfo: {
-                endCursor: `cursor${index}`,
-                hasNextPage: index < pages.length - 1,
-              },
-            },
-          },
-        },
-      },
-    });
-  }
-
-  return send(res, 400, { message: "unexpected query" });
-}
-
-function handler(req, res) {
-  const chunks = [];
-  req.on("data", (chunk) => chunks.push(chunk));
-  req.on("end", () => {
-    const raw = Buffer.concat(chunks).toString();
-
-    // Nothing should ever reach a GET: the script resolves the pull request
-    // number from the workflow context rather than looking it up.
-    if (req.method === "GET") {
-      calls.push(["list_pulls", req.url]);
-      return send(res, 404, { message: "not found" });
-    }
-
-    if (req.method === "POST") {
-      const body = raw ? JSON.parse(raw) : {};
-
-      if (req.url.startsWith("/graphql")) {
-        return handleGraphql(res, body);
-      }
-
-      if (/\/issues\/\d+\/comments$/.test(req.url)) {
-        calls.push(["create", body.body]);
-        calls.push(["create_path", req.url]);
-        const [status, payload] = state.create ?? [201, { id: 1, node_id: "IC_new" }];
-        return send(res, status, payload);
-      }
-    }
-
-    return send(res, 404, { message: "not found" });
-  });
-}
+let github;
 
 function comment(id, body, { author = BOT, minimized = false } = {}) {
   return { id, isMinimized: minimized, body, author: { login: author } };
@@ -136,16 +37,15 @@ function sticky(id, { count = 4, author = BOT, minimized = false } = {}) {
 
 /** Run pr-comment.sh against the mock API. Resolves to { code, out }. */
 async function run(mode, { env = {}, api = {} } = {}) {
-  calls = [];
-  state = { ...api };
+  github.reset(api);
 
   const childEnv = {
     PATH: process.env.PATH,
     HOME: process.env.HOME ?? "/tmp",
     MODE: mode,
     GITHUB_TOKEN: "test-token",
-    GITHUB_API_URL: base,
-    GITHUB_GRAPHQL_URL: `${base}/graphql`,
+    GITHUB_API_URL: github.base,
+    GITHUB_GRAPHQL_URL: `${github.base}/graphql`,
     GITHUB_REPOSITORY: REPO,
     PR_NUMBER: "42",
     ISSUE_COUNT: "4",
@@ -155,34 +55,17 @@ async function run(mode, { env = {}, api = {} } = {}) {
     ...env,
   };
 
-  return await new Promise((resolve, reject) => {
-    const child = spawn("bash", [SCRIPT], { env: childEnv });
-    let out = "";
-    const timer = setTimeout(() => {
-      child.kill("SIGKILL");
-      reject(new Error("pr-comment.sh timed out"));
-    }, 30_000);
-
-    child.stdout.on("data", (d) => (out += d));
-    child.stderr.on("data", (d) => (out += d));
-    child.on("error", reject);
-    child.on("close", (code) => {
-      clearTimeout(timer);
-      resolve({ code, out });
-    });
-  });
+  return runScript(SCRIPT, childEnv);
 }
 
-const kinds = () => calls.map(([kind]) => kind);
-const first = (kind) => calls.find(([k]) => k === kind)?.[1];
+const kinds = () => github.calls.map(([kind]) => kind);
+const first = (kind) => github.calls.find(([k]) => k === kind)?.[1];
 
 before(async () => {
-  server = createServer(handler);
-  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
-  base = `http://127.0.0.1:${server.address().port}`;
+  github = await startGithubMock({ bot: BOT });
 });
 
-after(() => server?.close());
+after(() => github?.close());
 
 describe("upsert", () => {
   test("creates a comment when none exists", async () => {
