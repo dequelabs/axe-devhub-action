@@ -11,7 +11,7 @@ jobs:
     timeout-minutes: 2
     steps:
       # Without a checkout there are no scripts in the workspace to scan.
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: ludeeus/action-shellcheck@00cae500b08a931fb5698e11e79bfbd38e612a38 # tag=v2.0.0
         with:
           # style/info findings are advisory; fail the build on real defects only
@@ -20,7 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v6
         with:
           # 22.23.4 is the first 22.x that distrusts the compromised eMudhra CAs.
@@ -36,13 +36,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: reviewdog/action-actionlint@0d952c597ef8459f634d7145b0b044a9699e5e43 # tag=v1.71.0
   validate-action-yml:
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Validate action.yml
         run: |
           python3 -c "
@@ -66,7 +66,7 @@ jobs:
       commit_sha: ${{ steps.get-sha.outputs.commit_sha }}
     steps:
       - name: Checkout watcher-examples repo
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           repository: dequelabs/watcher-examples
       - name: Setup Node.js
@@ -114,7 +114,7 @@ jobs:
       contents: read
       pull-requests: write
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Run axe DevHub action
         id: axe-devhub-action
         uses: ./
