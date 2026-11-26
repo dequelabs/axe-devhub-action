@@ -16,7 +16,7 @@ Note that declaring a `permissions` block sets every scope you do not list to `n
 
 Commenting is best effort. If the token cannot write — most commonly on a pull request from a fork, where `GITHUB_TOKEN` is always read-only — the action logs a warning and carries on; the accessibility result itself is unaffected.
 
-## axe Developer Hub API key
+## Axe Developer Hub API key
 
 The `api_key` must belong to a user who is a member of the project. The membership can come from an individual grant or from a team grant. Any project role is enough. The user does not have to be a project admin.
 
@@ -28,7 +28,7 @@ If the server refuses the API key, the action stops after the first attempt and 
 
 The action retries all other failures. `retry_count` sets how long it keeps trying. That time is the sum of `retry_count` waits of 1, 2, 4 ... seconds, each at most 600 seconds, which is about 17 minutes for the default of 10. Inside that time the action waits 2 seconds first, then doubles the wait after each retry, up to 15 seconds. When the server answers HTTP 408, 500, 502, 503 or 504 with a `Retry-After` header that gives whole seconds and asks for a longer wait, the action waits that long when the wait fits inside the `retry_count` time, or while the action has made fewer than `retry_count` retries. The action never makes fewer than `retry_count` retries in total, unless the 5-minute limit on HTTP 429 throttling stops it first. Retries after HTTP 429 count toward that number. `retry_count` must be a whole number of at most 9 digits.
 
-When the API answers HTTP 429 (throttled), the action waits at least the `Retry-After` seconds when the header gives whole seconds, plus a random part so that jobs do not retry together. It stops after at most 5 minutes of throttling, or sooner when the `retry_count` time runs out and its retries are used up. When the 5 minutes run out, the error says that the API throttled the requests. When the `retry_count` time runs out first, the error shows the last failure that was not HTTP 429, or the throttling error when there was none.
+When the API answers HTTP 429 (throttled), the action waits at least the `Retry-After` seconds when the header gives whole seconds, plus a random part so that jobs do not retry together. It stops after at most 5 minutes of throttling, or sooner when the `retry_count` time runs out and its retries are used up. When the next wait would go past the 5 minutes, the action stops with an error titled "Axe Developer Hub API rate limit". It says that the API refused the requests because too many were sent, how long the action waited or that the requested wait was longer than the action can wait, when it stopped, and what to do next. When the `retry_count` time runs out first, the error shows the last failure that was not HTTP 429, or the throttling error when there was none.
 
 ## Inputs
 

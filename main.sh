@@ -116,7 +116,13 @@ next_retry_wait() {
 }
 
 fail_throttled() {
-  echo "::error::The axe Developer Hub API throttled the requests (HTTP 429). The action waited $ThrottledSeconds seconds and stopped. Re-run the job later."
+  local stopped_at
+  stopped_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+  local stop="The action waited $ThrottledSeconds seconds and stopped at $stopped_at."
+  if [ "$ThrottledSeconds" -eq 0 ]; then
+    stop="The requested wait is longer than the action can wait, so it stopped at $stopped_at."
+  fi
+  echo "::error title=Axe Developer Hub API rate limit::The Axe Developer Hub API refused the requests because too many were sent (HTTP 429). $stop Re-run the job later. If this keeps happening, contact Deque Support and include this message."
   exit 1
 }
 
@@ -154,7 +160,7 @@ while true; do
     # the project does not exist for this API key. Every other 404 is retried,
     # because the server also sends 404 while the commit results are not uploaded yet.
     if [ "$Status" = "401" ]; then
-      Permission="The server did not accept the API key. Make sure that api_key is a valid axe Developer Hub API key."
+      Permission="The server did not accept the API key. Make sure that api_key is a valid Axe Developer Hub API key."
     elif [ "$Status" = "403" ] || { [ "$Status" = "404" ] && [ "$ErrorMessage" = "Project not found" ]; }; then
       Permission="The API key cannot get access to this project. The user of the API key must be a member of the project. An individual grant or a team grant is enough."
     else
@@ -262,7 +268,7 @@ if [ -n "${GITHUB_OUTPUT+x}" ]; then
 fi
 
 echo
-echo "axe Developer Hub accessibility results:"
+echo "Axe Developer Hub accessibility results:"
 echo "Project ID: $ProjectId"
 echo "Project name: $ProjectName"
 echo "Commit SHA: $COMMIT_SHA"

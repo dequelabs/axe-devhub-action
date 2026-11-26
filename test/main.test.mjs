@@ -99,7 +99,8 @@ async function run(response, options = {}) {
 /**
  * Make a directory with `sleep` and `date` shims that main.sh finds first on PATH.
  * `sleep` records its argument in `sleeps` and moves the fake clock in `clock` forward
- * without waiting. `date +%s` prints that clock; any other `date` call runs the real one.
+ * without waiting. `date +%s` prints that clock, and `date -u +FORMAT` formats it;
+ * any other `date` call runs the real one.
  */
 function makeShims() {
   const shims = mkdtempSync(join(dir, "shims-"));
@@ -117,6 +118,9 @@ echo $(( $(cat "${shims}/clock") + $1 )) > "${shims}/clock"
     `#!/bin/bash
 if [ "$#" -eq 1 ] && [ "$1" = "+%s" ]; then
   cat "${shims}/clock"
+elif [ "$#" -eq 2 ] && [ "$1" = "-u" ] && [ "\${2:0:1}" = "+" ]; then
+  clock=$(cat "${shims}/clock")
+  /bin/date -u -r "$clock" "$2" 2>/dev/null || /bin/date -u -d "@$clock" "$2"
 else
   exec /bin/date "$@"
 fi
@@ -294,7 +298,7 @@ describe("permission refusals", () => {
     assert.equal(attempts, 1, out);
     assert.equal(code, 1, out);
     assert.match(out, /^::error::Permission error \(HTTP 401\)/m);
-    assert.match(out, /valid axe Developer Hub API key/);
+    assert.match(out, /valid Axe Developer Hub API key/);
     assert.doesNotMatch(out, /member of the project/);
   });
 
@@ -547,6 +551,31 @@ describe("retries", () => {
   });
 });
 
+const THROTTLE_ERROR = /^::error title=Axe Developer Hub API rate limit::/m;
+
+/**
+ * The throttling error line main.sh prints after `throttledSeconds` of waits on a 429,
+ * when every wait of the run moved the shim clock by `allWaits` seconds in total.
+ */
+function throttleErrorLine(throttledSeconds, allWaits) {
+  const stoppedAt = new Date((ANY_FIXED_UNIX_TIME + allWaits) * 1000)
+    .toISOString()
+    .replace(".000Z", "Z");
+  const stop =
+    throttledSeconds > 0
+      ? `The action waited ${throttledSeconds} seconds and stopped at ${stoppedAt}.`
+      : `The requested wait is longer than the action can wait, so it stopped at ${stoppedAt}.`;
+  return (
+    "::error title=Axe Developer Hub API rate limit::" +
+    "The Axe Developer Hub API refused the requests because too many were sent (HTTP 429). " +
+    `${stop} Re-run the job later. If this keeps happening, contact Deque Support and include this message.`
+  );
+}
+
+function sum(numbers) {
+  return numbers.reduce((a, b) => a + b, 0);
+}
+
 describe("polling budget", () => {
   test("polls a not-ready 404 at most 15 s apart and succeeds", async () => {
     const { code, waits, attempts } = await run(null, {
@@ -569,6 +598,7 @@ describe("polling budget", () => {
     assert.deepEqual(waits, [2, 4, 8, 15, 15, 15]);
     assert.match(out, /::error::Failed: Missing git properties/);
     assert.doesNotMatch(out, /throttl/i);
+    assert.doesNotMatch(out, THROTTLE_ERROR);
   });
 
   test("keeps retry_count retries when each request takes a second", async () => {
@@ -654,12 +684,9 @@ describe("throttling", () => {
 
     assert.equal(code, 1);
     assert.ok(waits.length >= 2, `waits ${waits}`);
-    assert.ok(waits.reduce((a, b) => a + b, 0) <= 300);
+    assert.ok(sum(waits) <= 300);
     for (const w of waits) assert.ok(w >= 60 && w < 120, `wait ${w}`);
-    assert.match(out, /::error::.*axe Developer Hub API.*throttl/i);
-    const waited = waits.reduce((a, b) => a + b, 0);
-    assert.match(out, new RegExp(`waited ${waited} seconds`));
-    assert.match(out, /stopped\. Re-run the job later\.$/m);
+    assert.ok(out.split("\n").includes(throttleErrorLine(sum(waits), sum(waits))), out);
     assert.doesNotMatch(out, /Retry after the Retry-After interval/);
     assert.equal(outputs.issue_count, undefined);
   });
@@ -723,17 +750,17 @@ describe("throttling", () => {
 
     assert.equal(code, 1);
     assert.deepEqual(waits, []);
-    assert.match(out, /::error::.*axe Developer Hub API.*throttl/i);
+    assert.ok(out.split("\n").includes(throttleErrorLine(0, 0)), out);
   });
 
   test("prints the throttling error when Retry-After does not fit the cap after a not-ready answer", async () => {
-    const { code, out } = await run(null, {
+    const { code, out, waits } = await run(null, {
       replies: [notReady(), throttled(400)],
       env: { RETRY_COUNT: "1" },
     });
 
     assert.equal(code, 1, out);
-    assert.match(out, /::error::.*axe Developer Hub API.*throttl/i);
+    assert.ok(out.split("\n").includes(throttleErrorLine(0, sum(waits))), out);
     assert.doesNotMatch(out, /::error::Failed/);
   });
 
@@ -745,7 +772,7 @@ describe("throttling", () => {
 
     assert.equal(code, 1, out);
     assert.match(out, /^::error::Failed request: HTTP 502 <html>Bad gateway<\/html>$/m);
-    assert.doesNotMatch(out, /::error::.*throttl/i);
+    assert.doesNotMatch(out, THROTTLE_ERROR);
   });
 
   test("stops at once on a 429 when the budget is zero", async () => {
@@ -756,8 +783,20 @@ describe("throttling", () => {
 
     assert.equal(code, 1);
     assert.deepEqual(waits, []);
-    assert.match(out, /::error::.*axe Developer Hub API.*throttl/i);
+    assert.ok(out.split("\n").includes(throttleErrorLine(0, 0)), out);
     assert.doesNotMatch(out, /Failed/);
+  });
+
+  test("prints the waited seconds when the budget runs out on a 429 after a throttled wait", async () => {
+    const { code, out, waits } = await run(null, {
+      replies: [throttled(60)],
+      env: { RETRY_COUNT: "1" },
+    });
+
+    assert.equal(code, 1, out);
+    assert.equal(waits.length, 1);
+    assert.ok(waits[0] >= 60 && waits[0] < 120, `wait ${waits[0]}`);
+    assert.ok(out.split("\n").includes(throttleErrorLine(sum(waits), sum(waits))), out);
   });
 
   test("prints the not-ready error when the budget runs out on a 429 after not-ready answers", async () => {
@@ -772,7 +811,7 @@ describe("throttling", () => {
     assert.deepEqual(waits.slice(0, 4), [2, 4, 8, 15]);
     assert.ok(waits[4] >= 60 && waits[4] < 120, `wait ${waits[4]}`);
     assert.match(out, /^::error::Failed: Missing git properties/m);
-    assert.doesNotMatch(out, /::error::.*throttl/i);
+    assert.doesNotMatch(out, THROTTLE_ERROR);
   });
 
   test("waits on a 429 inside the budget after the retries are used up", async () => {
@@ -797,7 +836,7 @@ describe("throttling", () => {
     assert.equal(attempts, 7);
     assert.deepEqual(waits, [2, 4, 8, 15, 15, 15]);
     assert.match(out, /^::error::Failed: Missing git properties/m);
-    assert.doesNotMatch(out, /::error::.*throttl/i);
+    assert.doesNotMatch(out, THROTTLE_ERROR);
   });
 
   test("follows each rule in a mixed run", async () => {
